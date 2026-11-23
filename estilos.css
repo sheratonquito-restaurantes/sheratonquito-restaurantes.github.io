@@ -178,3 +178,10 @@ button { font-family: inherit; cursor: pointer; }
 @media (prefers-reduced-motion: reduce) {
   * { animation: none !important; transition: none !important; }
 }
+
+/* ───── Contenido generado desde data/catalogo.json ───── */
+.borrador-aviso { position: fixed; top: 0; left: 50%; transform: translateX(-50%); z-index: 60; background: #b23b2e; color: #fff; font-size: 12px; font-weight: 600; padding: 5px 14px; border-radius: 0 0 10px 10px; letter-spacing: .03em; }
+.borrador-aviso[hidden] { display: none; }
+.hoja-relleno { align-items: center; justify-content: center; text-align: center; }
+.hoja-relleno img { width: 40%; max-width: 160px; margin-bottom: 6%; opacity: .85; }
+.error-carga { color: rgba(255, 255, 255, .8); text-align: center; padding: 24px; font-size: 15px; }

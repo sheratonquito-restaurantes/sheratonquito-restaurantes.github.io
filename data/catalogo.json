@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "activa": "navidad-2026",
+  "formsUrl": "https://forms.cloud.microsoft/r/SjMkYFTQfn",
+  "telefonos": [
+    { "lugar": "Cook's y Bakery & Deli - Las Fragatas - The Chef's Table", "numero": "099 791 8319" },
+    { "lugar": "Coordinador de Reservas 1", "numero": "099 204 7975" },
+    { "lugar": "Coordinador de Reservas 2", "numero": "099 485 9771" }
+  ],
+  "aviso": {
+    "titulo": "Protección de datos personales",
+    "texto": "Al responder sí, autorizo a GHL UIO S.A.S., RUC 1793198474001 y ubicado en Av. República de El Salvador N36-212 y NNUU a tratar mis datos para gestionar nuestra relación y atender mis solicitudes.",
+    "derechos": "Podré ejercer mis derechos de acceso, rectificación, actualización, supresión, oposición y los demás previstos en la ley escribiendo a contactenos@ghlhoteles.com o datospersonales@ghlhoteles.com. La política está disponible en https://www.ghlhoteles.com/politica-privacidad/",
+    "casilla": "Sí, autorizo el tratamiento de mis datos personales."
+  },
+  "menus": {
+    "sobretitulo": "Todo el año",
+    "titulo": "Nuestros menús",
+    "items": [
+      { "nombre": "Menú Ejecutivo", "detalle": "De lunes a viernes", "precio": "$13", "vinculo": "" },
+      { "nombre": "Sugerencia del Chef", "detalle": "Creación de temporada", "precio": "$26", "vinculo": "" },
+      { "nombre": "Brunch Ecuatoriano", "detalle": "Fines de semana", "precio": "$28", "vinculo": "" }
+    ],
+    "nota": "Desayuno servido Deli y platos a la carta: precio según su elección. Precios por persona; para grupos y celebraciones le enviamos una cotización personalizada."
+  },
+  "temporadas": [
+    {
+      "id": "navidad-2026",
+      "nombre": "Navidad y Año Nuevo 2026",
+      "efectoPortada": "nieve",
+      "bienvenida": { "sobretitulo": "Restaurantes y Bares", "titulo": "Catálogo de temporada", "fecha": "Navidad y Año Nuevo · Diciembre 2026" },
+      "portada": { "sobretitulo": "Restaurantes y Bares", "titulo": "Catálogo", "subtitulo": "de temporada", "fecha": "Diciembre 2026" },
+      "carta": {
+        "sobretitulo": "Bienvenidos",
+        "titulo": "Una temporada",
+        "subtitulo": "para compartir",
+        "parrafos": [
+          "En nuestros restaurantes y bares le esperan cenas de Noche Buena, brunch de Navidad y Año Nuevo, tardes de té, menús para llevar y la experiencia de The Chef's Table.",
+          "Pase las páginas, elija lo que más le guste y reserve desde el mismo catálogo: nuestro equipo le confirmará por WhatsApp o correo."
+        ]
+      },
+      "contraportada": { "sobretitulo": "Gracias por preferirnos", "titulo": "Felices", "subtitulo": "fiestas" },
+      "secciones": [
+        {
+          "id": "navidad", "nombre": "Navidad", "icono": "🎄", "descripcion": "Cenas, brunch, té y take away", "efecto": "nieve",
+          "paginas": [
+            { "imagen": "assets/paginas/p01.jpg", "descripcion": "Catálogo de temporada, diciembre 2026", "reservar": false },
+            { "imagen": "assets/paginas/p02.jpg", "descripcion": "Las Fragatas: almuerzo buffet navideño, 34 dólares", "titulo": "Las Fragatas · Buffet navideño", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p03.jpg", "descripcion": "Cook's: menú sugerencia del chef navideño, 34 dólares", "titulo": "Cook's · Sugerencia del Chef navideña", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p04.jpg", "descripcion": "Cook's: tres menús de cuatro tiempos, 34 dólares", "titulo": "Cook's · Menús 1, 2 y 3", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p16.jpg", "descripcion": "Cook's: cena de Noche Buena, 54 dólares", "titulo": "Cook's · Noche Buena 24 de diciembre", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p22.jpg", "descripcion": "Cook's: menú de Noche Buena — cocolón con ceviche, espiral de langostino, sorbete de mandarina, ballotine de pavo y bondiola, postre de pistacho; incluye cóctel navideño, 54 dólares", "titulo": "Cook's · Menú de Noche Buena", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p17.jpg", "descripcion": "Las Fragatas: Christmas Brunch, 32 dólares", "titulo": "Las Fragatas · Christmas Brunch", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p05.jpg", "descripcion": "Bakery & Deli: tardes navideñas de té, 18 dólares", "titulo": "Bakery & Deli · Tardes navideñas de té", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p06.jpg", "descripcion": "Bakery & Deli: take away individual, 20 y 22 dólares", "titulo": "Bakery & Deli · Take Away individual", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p07.jpg", "descripcion": "Bakery & Deli: combos familiares para llevar", "titulo": "Bakery & Deli · Combos familiares", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p08.jpg", "descripcion": "The Chef's Table: presentación", "titulo": "The Chef's Table", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p09.jpg", "descripcion": "Desayuno Amanecer de Diciembre, 25 dólares", "titulo": "Chef's Table · Desayuno Amanecer de Diciembre", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p10.jpg", "descripcion": "Desayuno Alegría de Diciembre, 28 dólares", "titulo": "Chef's Table · Desayuno Alegría de Diciembre", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p11.jpg", "descripcion": "Desayuno Bosque Invernal, 28 dólares", "titulo": "Chef's Table · Desayuno Bosque Invernal", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p12.jpg", "descripcion": "Noche Buena de Altura, 45 dólares", "titulo": "Chef's Table · Noche Buena de Altura", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p15.jpg", "descripcion": "Magic Christmas, 24 de diciembre", "titulo": "Magic Christmas · 24 de diciembre", "reservar": true, "vinculo": "" }
+          ]
+        },
+        {
+          "id": "regalos", "nombre": "Regalos", "icono": "🎁", "descripcion": "Certificados de regalo", "efecto": "nieve",
+          "paginas": [
+            { "imagen": "assets/paginas/p14.jpg", "descripcion": "Certificados de regalo desde 28 dólares", "titulo": "Certificados de regalo", "reservar": true, "vinculo": "", "boton": "🎁 Pedir certificado" }
+          ]
+        },
+        {
+          "id": "anonuevo", "nombre": "Año Nuevo", "icono": "🥂", "descripcion": "Cenas, celebración y brunch", "efecto": "brindis",
+          "paginas": [
+            { "imagen": "assets/paginas/p18.jpg", "descripcion": "Año Nuevo: celebra nuevos comienzos", "reservar": false },
+            { "imagen": "assets/paginas/p19.jpg", "descripcion": "Cook's: cena de Año Nuevo, 68 dólares", "titulo": "Cook's · Cena de Año Nuevo", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p23.jpg", "descripcion": "Cook's: menú de Año Nuevo — tartaleta de camarón, tataki de res, sorbete de maracuyá, dúo de lomo fino y salmón, esfera de chocolate; incluye copa de espumante, 68 dólares", "titulo": "Cook's · Menú de Año Nuevo", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p13.jpg", "descripcion": "Especial de Fin de Año, 48 dólares", "titulo": "Chef's Table · Especial de Fin de Año", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p20.jpg", "descripcion": "New Year Celebration, 31 de diciembre de 2026, 20h00 a 03h00: adultos 185 dólares, niños de 7 a 12 años 90 dólares; alojamiento 60 dólares por persona", "titulo": "New Year Celebration · 31 de diciembre", "reservar": true, "vinculo": "" },
+            { "imagen": "assets/paginas/p21.jpg", "descripcion": "Las Fragatas: New Year's Brunch, 32 dólares", "titulo": "Las Fragatas · New Year's Brunch", "reservar": true, "vinculo": "" }
+          ]
+        }
+      ]
+    }
+  ]
+}
