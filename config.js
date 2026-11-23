@@ -35,8 +35,8 @@ window.CATALOGO = {
   },
 
   TELEFONOS: [
-    { lugar: "Cook's y Bakery & Deli", numero: '099 791 8319', whatsapp: '593997918319' },
-    { lugar: 'Las Fragatas', numero: '099 204 7975', whatsapp: '593992047975' },
-    { lugar: "The Chef's Table", numero: '099 485 9771', whatsapp: '593994859771' },
+    { lugar: "Cook's y Bakery & Deli - Las Fragatas - The Chef's Table", numero: '099 791 8319', whatsapp: '593997918319' },
+    { lugar: 'Coordinador de Reservar 1', numero: '099 204 7975', whatsapp: '593992047975' },
+    { lugar: "Coordinador de Reservar 2", numero: '099 485 9771', whatsapp: '593994859771' },
   ],
 };
