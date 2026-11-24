@@ -214,8 +214,11 @@
   }
 
   /* ════════════ Tema y logos ════════════ */
+  var FAVICON = 'assets/logos/favicon-sheraton.png';
   var LOGO_CLARO = 'assets/logos/sheraton-blanco.png', LOGO_OSCURO = 'assets/logos/sheraton-negro.png';
   var logoTema = LOGO_CLARO;
+  $$('[data-anio]').forEach(function (e) { e.textContent = new Date().getFullYear(); });
+
   function aplicarTema() {
     var tema = (window.TEMAS || {})[C.tema] || (window.TEMAS || {})['noche-dorada'];
     var r = document.documentElement.style;
@@ -234,6 +237,8 @@
     $$('[data-logo="oscuro"]').forEach(function (i) { i.src = oscuro; });
     C._secundario = tema && tema.logo === 'oscuro' ? (L.secundarioOscuro || L.secundario) : L.secundario;
     C._secundarioPapel = L.secundarioOscuro || '';
+    // Favicon: el del catálogo si lo cambiaron; si no, el general del sitio; si no, el del hotel.
+    var fav = $('#favicon'); if (fav) fav.href = src(C.favicon || (D && D.favicon) || FAVICON);
   }
 
   /* ════════════ Formularios ════════════ */
@@ -404,6 +409,8 @@
         pie.appendChild(r);
       }
     });
+    pie.classList.toggle('con-reserva', !!$('.boton-flotante', pie));
+    pie.classList.toggle('con-botones', !!$('.dinamico', pie));
     $('#contador').textContent = (vis[0] + 1) + (vis.length > 1 ? '–' + (vis[1] + 1) : '') + ' / ' + paginas.length;
     $$('.barra-nav [data-ir]').forEach(function (b) { b.classList.remove('activo'); });
     var sec = seccionActual(vis[vis.length - 1]);
@@ -489,7 +496,8 @@
     $('#bienvenida').classList.remove('oculta');
   }
   function abrirQR() {
-    var url = location.origin + location.pathname + (C && D && C.id !== D.principal && !/\/[a-z0-9-]+\/$/.test(location.pathname) ? '?c=' + C.id : '');
+    var raiz = location.origin + location.pathname.replace(/[^/]*$/, '');
+    var url = (C && C.enlaceCorto) || raiz + (C && D && C.id !== D.principal ? C.id + '/' : '');
     var qr = qrcode(0, 'M'); qr.addData(url); qr.make();
     var datos = qr.createDataURL(10, 4);
     $('#qr-img').src = datos; $('#qr-descargar').href = datos; $('#qr-url').textContent = url;

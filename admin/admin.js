@@ -271,6 +271,7 @@
 
   /* ═══════════════ Catálogo ═══════════════ */
   var RESERVADOS = ['admin', 'assets', 'data', 'vendor', 'index', 'temas', 'app', 'estilos'];
+  var FAVICON = 'assets/logos/favicon-sheraton.png';
   var LOGO_CLARO = 'assets/logos/sheraton-blanco.png', LOGO_OSCURO = 'assets/logos/sheraton-negro.png';
   var FORMS_OK = /^https:\/\/forms\.(cloud\.microsoft|office\.com)\//;
   var TEMAS = window.TEMAS || {}, EFECTOS = window.EFECTOS || [['ninguno', 'Sin efecto']];
@@ -365,6 +366,17 @@
       return { dataUrl: c.toDataURL('image/png'), ext: 'png' };
     });
   }
+  // Favicon: se recorta al centro en cuadrado y se reduce a 192 × 192 px.
+  function prepararFavicon(archivo) {
+    if (!/^image\/(png|jpeg|webp)$/.test(archivo.type)) return Promise.reject(new Error('El favicon debe ser PNG, JPG o WEBP.'));
+    if (archivo.size > 3 * 1024 * 1024) return Promise.reject(new Error('La imagen supera 3 MB.'));
+    return leerComoDataUrl(archivo).then(cargarImg).then(function (img) {
+      var lado = Math.min(img.width, img.height), c = document.createElement('canvas'); c.width = c.height = 192;
+      var g = c.getContext('2d'); g.imageSmoothingQuality = 'high';
+      g.drawImage(img, (img.width - lado) / 2, (img.height - lado) / 2, lado, lado, 0, 0, 192, 192);
+      return { dataUrl: c.toDataURL('image/png'), ext: 'png', aviso: Math.abs(img.width - img.height) > 4 ? 'La imagen no era cuadrada; se recortó al centro.' : '' };
+    });
+  }
   function registrarImagen(prep, carpeta) {
     var ruta = 'assets/' + carpeta + '/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + '.' + prep.ext;
     S.pendientes[ruta] = { dataUrl: prep.dataUrl, base64: prep.dataUrl.split(',')[1] };
@@ -423,6 +435,7 @@
           (c.enlaceCorto ? '<p>🔗 Enlace corto: <a href="' + esc(c.enlaceCorto) + '" target="_blank" rel="noopener"><b>' + esc(c.enlaceCorto) + '</b></a> <button class="btn-icono" title="Copiar" data-accion="copiar" data-texto="' + esc(c.enlaceCorto) + '">📋</button></p>' : '') + '</div>' +
           '<div class="fila">' + (edit ? '' : '<button class="btn btn-borde btn-chico" data-accion="editar-catalogo" data-id="' + esc(c.id) + '">✏️ Editar</button>') +
           '<button class="btn btn-dorado btn-chico" data-accion="enlace-corto" data-id="' + esc(c.id) + '">🔗 ' + (c.enlaceCorto ? 'Cambiar enlace corto' : 'Crear enlace corto') + '</button>' +
+          '<button class="btn btn-borde btn-chico" data-accion="descargar-qr" data-id="' + esc(c.id) + '">📱 Descargar QR</button>' +
           '<button class="btn btn-borde btn-chico" data-accion="duplicar-catalogo" data-id="' + esc(c.id) + '">⧉ Duplicar</button>' +
           (principal ? '' : '<button class="btn btn-borde btn-chico" data-accion="principal-catalogo" data-id="' + esc(c.id) + '">★ Hacer principal</button>') +
           (principal ? '' : '<button class="btn btn-peligro btn-chico" data-accion="eliminar-catalogo" data-id="' + esc(c.id) + '">Eliminar</button>') +
@@ -506,6 +519,20 @@
       campo('Sobretítulo', 'T.contraportada.sobretitulo', cp.sobretitulo) + campo('Título (cursiva)', 'T.contraportada.titulo', cp.titulo) + campo('Segunda línea', 'T.contraportada.subtitulo', cp.subtitulo) + '</div></div>';
   }
 
+  function vistaFavicon(c) {
+    var general = S.datos.favicon || FAVICON, propio = c.favicon;
+    var caja = function (ruta, titulo, ayuda, ambito, cambiado, textoQuitar) {
+      return '<div class="logo-caja"><div class="favicon-vista"><img src="' + esc(rutaImagen(ruta)) + '" alt=""><span class="pestana-falsa"><img src="' + esc(rutaImagen(ruta)) + '" alt="">' + esc(c.nombre) + '</span></div>' +
+        '<b>' + esc(titulo) + '</b><small>' + esc(ayuda) + '</small><div class="fila">' +
+        '<label class="btn btn-borde btn-chico">Subir imagen<input type="file" accept="image/png,image/jpeg,image/webp" data-accion="favicon-subir" data-ambito="' + ambito + '" hidden></label>' +
+        (cambiado ? '<button class="btn btn-peligro btn-chico" data-accion="favicon-quitar" data-ambito="' + ambito + '">' + textoQuitar + '</button>' : '') + '</div></div>';
+    };
+    return '<div class="tarjeta"><h3>Favicon (ícono de la pestaña del navegador)</h3><p class="ayuda" style="margin-bottom:12px">Por defecto todos los catálogos usan el <b>emblema del hotel</b>. Si cambia el logo, suba aquí el nuevo: imagen <b>cuadrada</b>, mínimo <b>192 × 192 px</b> (ideal 512 × 512), PNG con fondo de color o transparente.</p><div class="logos">' +
+      caja(general, 'Favicon general', 'para todos los catálogos', 'general', !!S.datos.favicon, 'Volver al del hotel') +
+      caja(propio || general, 'Favicon solo de «' + c.nombre + '»', propio ? 'este catálogo usa uno propio' : 'opcional: hoy usa el general', 'catalogo', !!propio, 'Usar el general') +
+      '</div></div>';
+  }
+
   function vistaDiseno() {
     var c = Cat(), M = c.menus || {}, L = c.logos || {};
     var logo = function (clave, titulo, ayuda, defecto, fondo) {
@@ -532,6 +559,7 @@
       logo('secundario', 'Logo secundario en portada', 'opcional, ej. Bakery & Deli (claro)', '', '#1b1916') +
       logo('secundarioOscuro', 'Logo secundario sobre papel', 'opcional, versión oscura', '', '#f4efe8') +
       '</div></div>' +
+      vistaFavicon(c) +
       '<div class="tarjeta lista-editable"><h3>Formularios de Microsoft Forms</h3><p class="ayuda" style="margin-bottom:6px">Agregue todos los formularios que use este catálogo (reservas, eventos, grupos, cotizaciones…). Luego elija cuál abre cada sección o página.</p>' +
       (c.formularios || []).map(function (f, i) {
         return '<div class="item form" data-form="' + i + '">' +
@@ -650,6 +678,15 @@
       else aviso(notas.length ? notas.join(' · ') : 'Imágenes listas. Recuerde publicar.', notas.length ? '' : 'ok');
     });
   }
+  function subirFavicon(archivo, ambito) {
+    if (!archivo) return;
+    prepararFavicon(archivo).then(function (prep) {
+      var c = Cat(), ruta = registrarImagen(prep, 'logos/favicon');
+      if (ambito === 'general') { if (S.pendientes[S.datos.favicon]) delete S.pendientes[S.datos.favicon]; S.datos.favicon = ruta; }
+      else { if (S.pendientes[c.favicon]) delete S.pendientes[c.favicon]; c.favicon = ruta; }
+      cambio(true); aviso(prep.aviso || 'Favicon listo. Recuerde publicar.', prep.aviso ? '' : 'ok');
+    }).catch(function (e) { aviso(e.message, 'error'); });
+  }
   function subirLogo(archivo, clave) {
     if (!archivo) return;
     prepararLogo(archivo).then(function (prep) {
@@ -674,11 +711,16 @@
       case 'nuevo-catalogo': return nuevoCatalogo();
       case 'duplicar-catalogo': return duplicarCatalogo(el.getAttribute('data-id'));
       case 'icono-elegir': return elegirIcono().then(function (ic) { if (ic) { t.secciones[si].icono = ic; cambio(true); } });
+      case 'descargar-qr': return opcionesQR(el.getAttribute('data-id'));
       case 'enlace-corto': return crearEnlaceCorto(el.getAttribute('data-id'));
       case 'copiar': return copiarTexto(el.getAttribute('data-texto'));
       case 'principal-catalogo': S.datos.principal = el.getAttribute('data-id'); cambio(true); return aviso('Será el catálogo de la dirección principal al publicar.', 'ok');
       case 'eliminar-catalogo': return eliminarCatalogo(el.getAttribute('data-id'));
       case 'elegir-tema': c.tema = el.getAttribute('data-tema'); return cambio(true);
+      case 'favicon-quitar':
+        if (el.getAttribute('data-ambito') === 'general') { delete S.pendientes[S.datos.favicon]; S.datos.favicon = ''; }
+        else { delete S.pendientes[c.favicon]; c.favicon = ''; }
+        return cambio(true);
       case 'logo-biblioteca': return elegirLogo(el.getAttribute('data-logo'));
       case 'logo-quitar': delete S.pendientes[c.logos[el.getAttribute('data-logo')]]; c.logos[el.getAttribute('data-logo')] = ''; return cambio(true);
       case 'form-agregar': c.formularios = c.formularios || []; c.formularios.push({ id: 'f' + Date.now().toString(36), nombre: '', url: '' }); if (!c.formulario) c.formulario = c.formularios[0].id; return cambio(true);
@@ -780,6 +822,88 @@
       d.onclose = function () { resolver(d.returnValue && d.returnValue !== 'no' ? d.returnValue : null); };
       d.returnValue = ''; d.showModal();
     });
+  }
+
+  /* ═══════════════ Código QR por catálogo ═══════════════ */
+  // Antes de descargar: elegir textos y el logo que va debajo del título (se recuerda por catálogo).
+  function opcionesQR(id) {
+    var c = S.datos.catalogos.filter(function (x) { return x.id === id; })[0];
+    var t = c.temporadas.filter(function (x) { return x.id === c.activa; })[0] || c.temporadas[0] || {};
+    var bv = t.bienvenida || {}, Lc = c.logos || {};
+    var defecto = c.qrLogo != null ? c.qrLogo : (Lc.oscuro && Lc.oscuro !== LOGO_OSCURO ? Lc.oscuro : '');
+    var lista = [['', 'Ninguno (solo el logo del hotel arriba)']];
+    bibliotecaLogos().forEach(function (l) { if (l.oscuro !== LOGO_OSCURO) lista.push([l.oscuro, l.nombre]); });
+    if (defecto && !lista.some(function (o) { return o[0] === defecto; })) lista.push([defecto, 'Logo actual del catálogo']);
+    return dialogo('Descargar tarjeta con QR', 'El logo del hotel va siempre arriba. Elija qué más mostrar en la tarjeta de «' + esc(c.nombre) + '».', [
+      { id: 'sobretitulo', etiqueta: 'Sobretítulo', valor: bv.sobretitulo || c.nombre || '' },
+      { id: 'titulo', etiqueta: 'Título', valor: bv.titulo || t.nombre || c.nombre || '' },
+      { id: 'logo', etiqueta: 'Logo debajo del título', tipo: 'select', opciones: lista, valor: defecto },
+    ], 'Descargar').then(function (v) {
+      if (!v) return;
+      if ((c.qrLogo || '') !== v.logo) { c.qrLogo = v.logo; cambio(false); }
+      return descargarQR(id, v);
+    });
+  }
+
+  // Tarjeta imprimible con el QR: logo del hotel, sobretítulo y título de la temporada visible, marco y QR.
+  function descargarQR(id, op) {
+    op = op || {};
+    var c = S.datos.catalogos.filter(function (x) { return x.id === id; })[0];
+    var t = c.temporadas.filter(function (x) { return x.id === c.activa; })[0] || c.temporadas[0] || {};
+    var bv = t.bienvenida || {};
+    var url = c.enlaceCorto || 'https://' + REPO.nombre + '/' + (c.id === S.datos.principal ? '' : c.id + '/');
+    if (typeof qrcode !== 'function') return aviso('No se pudo cargar el generador de QR.', 'error');
+    var tema = TEMAS[c.tema] || TEMAS['noche-dorada'] || { v: {} };
+    var tinta = tema.v.tinta || '#9a7b45';
+    var fondo = c.tema === 'noche-dorada' || !tema.v.papel ? '#efe9e1' : tema.v.papel;
+    var extra = op.logo || '';
+    aviso('Preparando el QR…');
+    var fuentes = document.fonts ? Promise.all([
+      document.fonts.load('400 64px "Cormorant Garamond"'), document.fonts.load('600 28px Montserrat'), document.fonts.load('400 30px Montserrat'),
+    ]).catch(function () {}) : Promise.resolve();
+    return Promise.all([fuentes, cargarImg(rutaImagen(LOGO_OSCURO)), extra ? cargarImg(rutaImagen(extra)).catch(function () { return null; }) : null]).then(function (r) {
+      var logo = r[1], logoExtra = r[2];
+      var W = 1200, H = logoExtra ? 1750 : 1590;
+      var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+      var g = cv.getContext('2d');
+      g.fillStyle = fondo; g.fillRect(0, 0, W, H);
+      // Marco doble fino
+      g.strokeStyle = tinta; g.globalAlpha = .75; g.lineWidth = 2.5; g.strokeRect(30, 30, W - 60, H - 60);
+      g.lineWidth = 1.2; g.strokeRect(44, 44, W - 88, H - 88); g.globalAlpha = 1;
+      // Logo del hotel
+      var lw = 300, lh = lw * logo.height / logo.width; g.drawImage(logo, (W - lw) / 2, 110, lw, lh);
+      var y = 110 + lh + 90;
+      // Sobretítulo
+      g.textAlign = 'center'; g.fillStyle = tinta; g.font = '400 27px Montserrat, Arial, sans-serif';
+      if ('letterSpacing' in g) g.letterSpacing = '7px';
+      g.fillText(String(op.sobretitulo != null ? op.sobretitulo : (bv.sobretitulo || c.nombre || '')).toUpperCase(), W / 2, y);
+      if ('letterSpacing' in g) g.letterSpacing = '0px';
+      // Título de la temporada
+      var titulo = op.titulo || bv.titulo || t.nombre || c.nombre, tam = 68;
+      g.fillStyle = '#1b1916';
+      do { g.font = '400 ' + tam + 'px "Cormorant Garamond", Georgia, serif'; tam -= 2; } while (g.measureText(titulo).width > W - 220 && tam > 36);
+      y += 92; g.fillText(titulo, W / 2, y);
+      // Logo del catálogo (si tiene uno propio)
+      if (logoExtra) {
+        var eh = 130, ew = eh * logoExtra.width / logoExtra.height; if (ew > 420) { ew = 420; eh = ew * logoExtra.height / logoExtra.width; }
+        y += 40; g.drawImage(logoExtra, (W - ew) / 2, y, ew, eh); y += eh;
+      }
+      // QR sobre recuadro blanco
+      var qr = qrcode(0, 'M'); qr.addData(url); qr.make();
+      var n = qr.getModuleCount(), caja = 620, celda = Math.floor((caja - 60) / n), lado = celda * n;
+      var bx = (W - caja) / 2, by = y + 55;
+      g.fillStyle = '#ffffff'; g.fillRect(bx, by, caja, caja);
+      g.fillStyle = '#111111';
+      var ox = bx + (caja - lado) / 2, oy = by + (caja - lado) / 2;
+      for (var fy = 0; fy < n; fy++) for (var fx = 0; fx < n; fx++) if (qr.isDark(fy, fx)) g.fillRect(ox + fx * celda, oy + fy * celda, celda, celda);
+      // Indicación
+      g.fillStyle = '#3a3631'; g.font = '400 30px Montserrat, Arial, sans-serif';
+      g.fillText('Escanee con la cámara de su celular', W / 2, by + caja + 75);
+      var a = document.createElement('a'); a.href = cv.toDataURL('image/png'); a.download = 'QR-' + c.id + '-' + (t.id || 'catalogo') + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      aviso('QR descargado (' + (c.enlaceCorto ? 'con el enlace corto' : 'con el enlace del catálogo') + '): ' + url, 'ok');
+      if (hayCambios()) setTimeout(function () { aviso('Recuerde: el QR funcionará cuando el catálogo esté publicado.'); }, 3500);
+    }).catch(function () { aviso('No se pudo preparar el QR.', 'error'); });
   }
 
   /* ═══════════════ Enlace corto (is.gd) ═══════════════ */
@@ -945,6 +1069,7 @@
       '<meta name="viewport" content="width=device-width, initial-scale=1">' +
       '<meta property="og:title" content="' + titulo + '"><meta property="og:description" content="Catálogo de ' + esc(c.nombre) + '. Solicite en línea.">' +
       '<meta property="og:url" content="https://' + REPO.nombre + '/' + c.id + '/">' +
+      '<link rel="icon" type="image/png" href="../' + esc(c.favicon || S.datos.favicon || FAVICON) + '">' +
       '<meta http-equiv="refresh" content="0; url=../?c=' + c.id + '"><link rel="canonical" href="../?c=' + c.id + '"></head>' +
       '<body style="font-family:sans-serif;background:#111;color:#eee;text-align:center;padding:40px">' +
       '<p>Abriendo el catálogo… <a style="color:#e3cc9c" href="../?c=' + c.id + '">continuar</a></p></body></html>';
@@ -954,7 +1079,9 @@
     var errores = validar();
     if (errores.length) return aviso(errores[0], 'error');
     var usadas = {};
+    if (S.datos.favicon) usadas[S.datos.favicon] = 1;
     S.datos.catalogos.forEach(function (c) {
+      if (c.favicon) usadas[c.favicon] = 1;
       Object.keys(c.logos || {}).forEach(function (k) { if (c.logos[k]) usadas[c.logos[k]] = 1; });
       c.temporadas.forEach(function (t) { (t.secciones || []).forEach(function (s) { (s.paginas || []).forEach(function (p) { usadas[p.imagen] = 1; }); }); });
     });
@@ -1042,6 +1169,7 @@
     if (el.matches('input[type=checkbox], input[type=radio], select') && el.closest('#contenido')) alEditar(e);
     if (acc === 'pag-agregar') { agregarArchivos(el.files, +el.closest('[data-sec]').getAttribute('data-sec')); el.value = ''; }
     if (acc === 'pag-reemplazar') { agregarArchivos(el.files, +el.closest('[data-sec]').getAttribute('data-sec'), +el.closest('[data-pag]').getAttribute('data-pag')); el.value = ''; }
+    if (acc === 'favicon-subir') { subirFavicon(el.files[0], el.getAttribute('data-ambito')); el.value = ''; }
     if (acc === 'logo-subir') { subirLogo(el.files[0], el.getAttribute('data-logo')); el.value = ''; }
   });
   // Arrastrar y soltar imágenes sobre «Agregar páginas».

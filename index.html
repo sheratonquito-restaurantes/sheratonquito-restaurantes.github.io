@@ -4,6 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Restaurantes y Bares · Sheraton Quito</title>
+  <link rel="icon" id="favicon" type="image/png" href="assets/logos/favicon-sheraton.png">
+  <link rel="apple-touch-icon" href="assets/logos/apple-touch-icon.png">
   <meta name="description" content="Catálogo de temporada de los restaurantes y bares del Hotel Sheraton Quito. Reserve en línea.">
   <meta name="theme-color" content="#111111">
   <!-- Seguridad: solo se permite cargar contenido propio, las fuentes de Google y el Microsoft Forms. -->
@@ -19,7 +21,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="estilos.css?v=5">
+  <link rel="stylesheet" href="estilos.css?v=9">
 </head>
 <body>
   <!-- Todo el contenido (textos, temporadas, páginas, menús, teléfonos) viene de data/catalogo.json
@@ -47,6 +49,7 @@
 
       <button id="aceptar" class="boton boton-negro" disabled>Abrir el catálogo</button>
       <p class="aviso-pie">Debe aceptar la autorización para continuar.</p>
+      <p class="credito credito-bienvenida"><span class="credito-copy">© <span data-anio>2026</span> Hotel Sheraton Quito<span class="credito-derechos"> · Todos los derechos reservados</span></span><span class="credito-sep"> · </span><span class="credito-autor">Elaborado por: Ing. Diego Vizcaino</span></p>
     </div>
   </section>
 
@@ -67,6 +70,7 @@
   <footer class="pie">
     <button id="boton-qr" class="boton boton-claro boton-qr" aria-label="Código QR del catálogo" title="Código QR del catálogo">▦ QR</button>
     <span id="contador"></span>
+    <p class="credito credito-pie"><span class="credito-copy">© <span data-anio>2026</span> Hotel Sheraton Quito<span class="credito-derechos"> · Todos los derechos reservados</span></span><span class="credito-sep"> · </span><span class="credito-autor">Elaborado por: Ing. Diego Vizcaino</span></p>
   </footer>
 
   <!-- Ventana del formulario -->
@@ -106,6 +110,6 @@
   <script src="vendor/page-flip.browser.js?v=5"></script>
   <script src="vendor/qrcode.js?v=5"></script>
   <script src="temas.js?v=7"></script>
-  <script src="app.js?v=5"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
