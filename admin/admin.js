@@ -55,9 +55,9 @@
   /* ═══════════════ Estado ═══════════════ */
   var S = {
     token: null, maestra: null, usuario: null, acceso: null,
-    datos: null, original: '', temporada: null,
+    datos: null, original: '', catalogo: null, temporada: null, eliminados: [],
     pendientes: {}, // ruta -> { dataUrl, base64 }
-    pestana: 'temporadas',
+    pestana: 'catalogos',
   };
 
   /* ═══════════════ GitHub (o modo de prueba) ═══════════════ */
@@ -270,34 +270,53 @@
   }
 
   /* ═══════════════ Catálogo ═══════════════ */
+  var RESERVADOS = ['admin', 'assets', 'data', 'vendor', 'index', 'temas', 'app', 'estilos'];
+  var LOGO_CLARO = 'assets/logos/sheraton-blanco.png', LOGO_OSCURO = 'assets/logos/sheraton-negro.png';
+  var FORMS_OK = /^https:\/\/forms\.(cloud\.microsoft|office\.com)\//;
+  var TEMAS = window.TEMAS || {}, EFECTOS = window.EFECTOS || [['ninguno', 'Sin efecto']];
+
+  // Formato antiguo (un solo catálogo) → formato con varios catálogos.
+  function migrar(d) {
+    if (d && d.version >= 2 && d.catalogos) return d;
+    return {
+      version: 2, principal: 'ayb', aviso: d.aviso,
+      catalogos: [{
+        id: 'ayb', nombre: 'Alimentos y Bebidas', activa: d.activa, tema: 'noche-dorada',
+        logos: { claro: '', oscuro: '', secundario: 'assets/logos/bakery-blanco.png', secundarioOscuro: 'assets/logos/bakery-gris.png' },
+        formularios: [{ id: 'reservas', nombre: 'Reservas Restaurantes y Bares', url: d.formsUrl || '' }], formulario: 'reservas',
+        telefonos: d.telefonos || [], menus: Object.assign({ mostrar: true }, d.menus || {}), temporadas: d.temporadas || [],
+      }],
+    };
+  }
+
   function cargarCatalogo() {
     return leerArchivo(RUTA_DATOS).then(function (texto) {
-      S.datos = JSON.parse(texto);
-      S.original = JSON.stringify(S.datos);
-      S.temporada = S.datos.activa;
+      var crudo = JSON.parse(texto);
+      S.datos = migrar(crudo);
+      S.original = JSON.stringify(crudo.version >= 2 ? S.datos : crudo); // si se migró, cuenta como cambio por publicar
+      S.catalogo = S.datos.principal; S.temporada = Cat().activa;
       S.pendientes = {};
       var b = leerBorradorLocal();
       $('#pantalla-acceso').hidden = true; $('#app').hidden = false;
       $('#usuario-actual').textContent = 'Usuario: ' + S.usuario + (DEMO ? ' · modo de prueba' : '');
       pintarTodo();
-      if (b && b.usuario === S.usuario && b.datos && JSON.stringify(b.datos) !== S.original) {
+      if (b && b.usuario === S.usuario && b.datos && JSON.stringify(b.datos) !== JSON.stringify(S.datos)) {
         dialogo('Hay cambios sin publicar', 'Se encontró un borrador guardado en este equipo el ' + esc(new Date(b.fecha).toLocaleString('es-EC')) + '. ¿Desea recuperarlo?', [], 'Recuperar').then(function (v) {
-          if (v) { S.datos = b.datos; S.pendientes = b.pendientes || {}; S.temporada = b.temporada || S.datos.activa; pintarTodo(); aviso('Borrador recuperado.'); }
+          if (v) { S.datos = migrar(b.datos); S.pendientes = b.pendientes || {}; S.catalogo = b.catalogo || S.datos.principal; S.temporada = b.temporada || Cat().activa; pintarTodo(); aviso('Borrador recuperado.'); }
           else borrarBorradorLocal();
         });
       }
     });
   }
 
-  function T() { return (S.datos.temporadas || []).filter(function (t) { return t.id === S.temporada; })[0] || S.datos.temporadas[0]; }
+  function Cat() { var l = S.datos.catalogos; return l.filter(function (c) { return c.id === S.catalogo; })[0] || l[0]; }
+  function T() { var c = Cat(); return (c.temporadas || []).filter(function (t) { return t.id === S.temporada; })[0] || c.temporadas[0]; }
   function hayCambios() { return JSON.stringify(S.datos) !== S.original || Object.keys(S.pendientes).length > 0; }
 
   function guardarBorradorLocal() {
-    try {
-      localStorage.setItem('catalogo-admin-borrador', JSON.stringify({ usuario: S.usuario, fecha: Date.now(), datos: S.datos, temporada: S.temporada, pendientes: S.pendientes }));
-    } catch (e) {
-      try { localStorage.setItem('catalogo-admin-borrador', JSON.stringify({ usuario: S.usuario, fecha: Date.now(), datos: S.datos, temporada: S.temporada, pendientes: {} })); } catch (e2) { /* sin espacio */ }
-    }
+    var base = { usuario: S.usuario, fecha: Date.now(), datos: S.datos, catalogo: S.catalogo, temporada: S.temporada };
+    try { localStorage.setItem('catalogo-admin-borrador', JSON.stringify(Object.assign({ pendientes: S.pendientes }, base))); }
+    catch (e) { try { localStorage.setItem('catalogo-admin-borrador', JSON.stringify(Object.assign({ pendientes: {} }, base))); } catch (e2) { /* sin espacio */ } }
   }
   function leerBorradorLocal() { try { return JSON.parse(localStorage.getItem('catalogo-admin-borrador') || 'null'); } catch (e) { return null; } }
   function borrarBorradorLocal() { try { localStorage.removeItem('catalogo-admin-borrador'); } catch (e) { /* nada */ } }
@@ -308,69 +327,71 @@
     actualizarCabecera();
     if (repintar) pintarContenido();
   }
-
   function rutaImagen(ruta) { return S.pendientes[ruta] ? S.pendientes[ruta].dataUrl : '../' + ruta; }
+  function enlacePublico(c) {
+    var raiz = DEMO ? location.origin + '/' : 'https://' + REPO.nombre + '/';
+    return c.id === S.datos.principal ? raiz : raiz + c.id + '/';
+  }
 
   /* ═══════════════ Imágenes ═══════════════ */
   var ANCHO = 880, ALTO = 1100;
   function leerComoDataUrl(archivo) {
     return new Promise(function (res, rej) { var r = new FileReader(); r.onload = function () { res(r.result); }; r.onerror = rej; r.readAsDataURL(archivo); });
   }
+  function cargarImg(u) { return new Promise(function (res, rej) { var i = new Image(); i.onload = function () { res(i); }; i.onerror = rej; i.src = u; }); }
   function prepararImagen(archivo) {
     if (!/^image\/(jpeg|png|webp|gif)$/.test(archivo.type)) return Promise.reject(new Error(archivo.name + ': formato no permitido (use JPG, PNG, WEBP o GIF).'));
     if (archivo.size > 15 * 1024 * 1024) return Promise.reject(new Error(archivo.name + ': supera 15 MB.'));
-    // Los GIF se suben tal cual para conservar la animación.
     if (archivo.type === 'image/gif') {
       if (archivo.size > 5 * 1024 * 1024) return Promise.reject(new Error(archivo.name + ': el GIF supera 5 MB; redúzcalo antes de subirlo.'));
       return leerComoDataUrl(archivo).then(function (u) { return { dataUrl: u, ext: 'gif' }; });
     }
-    return leerComoDataUrl(archivo).then(function (u) {
-      return new Promise(function (res, rej) {
-        var img = new Image();
-        img.onload = function () {
-          var c = document.createElement('canvas'); c.width = ANCHO; c.height = ALTO;
-          var g = c.getContext('2d'); g.fillStyle = '#0c0b0a'; g.fillRect(0, 0, ANCHO, ALTO);
-          var e = Math.min(ANCHO / img.width, ALTO / img.height);
-          var w = img.width * e, h = img.height * e;
-          g.imageSmoothingQuality = 'high';
-          g.drawImage(img, (ANCHO - w) / 2, (ALTO - h) / 2, w, h);
-          res({ dataUrl: c.toDataURL('image/jpeg', 0.86), ext: 'jpg' });
-        };
-        img.onerror = function () { rej(new Error(archivo.name + ': no se pudo leer la imagen.')); };
-        img.src = u;
-      });
+    return leerComoDataUrl(archivo).then(cargarImg).then(function (img) {
+      var c = document.createElement('canvas'); c.width = ANCHO; c.height = ALTO;
+      var g = c.getContext('2d'); g.fillStyle = '#0c0b0a'; g.fillRect(0, 0, ANCHO, ALTO);
+      var e = Math.min(ANCHO / img.width, ALTO / img.height), w = img.width * e, h = img.height * e;
+      g.imageSmoothingQuality = 'high'; g.drawImage(img, (ANCHO - w) / 2, (ALTO - h) / 2, w, h);
+      return { dataUrl: c.toDataURL('image/jpeg', 0.86), ext: 'jpg', aviso: Math.abs(img.width / img.height - 0.8) > 0.06 ? archivo.name + ' no es vertical 4:5; se agregaron bordes.' : '' };
+    }, function () { throw new Error(archivo.name + ': no se pudo leer la imagen.'); });
+  }
+  // Logos: PNG o WEBP con fondo transparente; se reducen a 1000 px de ancho como máximo.
+  function prepararLogo(archivo) {
+    if (!/^image\/(png|webp)$/.test(archivo.type)) return Promise.reject(new Error('El logo debe ser PNG o WEBP con fondo transparente.'));
+    if (archivo.size > 3 * 1024 * 1024) return Promise.reject(new Error('El logo supera 3 MB.'));
+    return leerComoDataUrl(archivo).then(cargarImg).then(function (img) {
+      var e = Math.min(1, 1000 / img.width), c = document.createElement('canvas');
+      c.width = Math.round(img.width * e); c.height = Math.round(img.height * e);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+      return { dataUrl: c.toDataURL('image/png'), ext: 'png' };
     });
   }
-  function registrarImagen(prep) {
-    var ruta = 'assets/temporadas/' + S.temporada + '/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + '.' + prep.ext;
+  function registrarImagen(prep, carpeta) {
+    var ruta = 'assets/' + carpeta + '/' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6) + '.' + prep.ext;
     S.pendientes[ruta] = { dataUrl: prep.dataUrl, base64: prep.dataUrl.split(',')[1] };
     return ruta;
   }
-  function slug(t) { return String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'temporada'; }
+  function slug(t) { return String(t).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'catalogo'; }
 
   /* ═══════════════ Pintado ═══════════════ */
   function pintarTodo() { actualizarCabecera(); pintarContenido(); }
+  function opciones(lista, valor) { return lista.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === valor ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join(''); }
 
   function actualizarCabecera() {
-    var sel = $('#temporada-editando');
-    sel.innerHTML = S.datos.temporadas.map(function (t) { return '<option value="' + esc(t.id) + '"' + (t.id === S.temporada ? ' selected' : '') + '>' + esc(t.nombre) + '</option>'; }).join('');
-    var activa = S.temporada === S.datos.activa;
+    var c = Cat();
+    $('#catalogo-editando').innerHTML = opciones(S.datos.catalogos.map(function (x) { return [x.id, x.nombre]; }), c.id);
+    $('#temporada-editando').innerHTML = opciones(c.temporadas.map(function (t) { return [t.id, t.nombre]; }), S.temporada);
+    var activa = S.temporada === c.activa;
     var chip = $('#estado-temporada');
     chip.textContent = activa ? '● Visible al público' : 'No visible (borrador)';
     chip.className = 'chip' + (activa ? ' activa' : '');
     var n = Object.keys(S.pendientes).length;
-    var b = $('#boton-publicar');
-    b.innerHTML = '🚀 Publicar' + (hayCambios() ? ' <span class="contador-cambios">' + (n ? n + ' img' : '•') + '</span>' : '');
+    $('#boton-publicar').innerHTML = '🚀 Publicar' + (hayCambios() ? ' <span class="contador-cambios">' + (n ? n + ' img' : '•') + '</span>' : '');
     $$('#pestanas button').forEach(function (x) { x.classList.toggle('activa', x.getAttribute('data-pestana') === S.pestana); });
   }
-
   function pintarContenido() {
-    var f = { temporadas: vistaTemporadas, paginas: vistaPaginas, textos: vistaTextos, general: vistaGeneral, usuarios: vistaUsuarios }[S.pestana];
+    var f = { catalogos: vistaCatalogos, temporadas: vistaTemporadas, paginas: vistaPaginas, textos: vistaTextos, diseno: vistaDiseno, usuarios: vistaUsuarios }[S.pestana];
     $('#contenido').innerHTML = f();
   }
-
-  var EFECTOS = [['nieve', '❄️ Nieve (Navidad)'], ['brindis', '🥂 Brindis: burbujas y confeti dorado (Año Nuevo)'], ['confeti', '🎉 Confeti de colores (Carnaval, fiestas)'], ['corazones', '💕 Corazones (San Valentín, Día de la Madre)'], ['ninguno', 'Sin efecto']];
-  function opciones(lista, valor) { return lista.map(function (o) { return '<option value="' + esc(o[0]) + '"' + (o[0] === valor ? ' selected' : '') + '>' + esc(o[1]) + '</option>'; }).join(''); }
   function campo(etiqueta, ruta, valor, opt) {
     opt = opt || {};
     var control = opt.area
@@ -378,18 +399,47 @@
       : '<input type="' + (opt.tipo || 'text') + '" data-campo="' + ruta + '" value="' + esc(valor) + '"' + (opt.ph ? ' placeholder="' + esc(opt.ph) + '"' : '') + '>';
     return '<label class="campo">' + esc(etiqueta) + (opt.ayuda ? ' <small>' + esc(opt.ayuda) + '</small>' : '') + control + '</label>';
   }
+  function opcionesFormulario(valor, textoVacio) {
+    return '<option value="">' + esc(textoVacio) + '</option>' + (Cat().formularios || []).map(function (f) {
+      return '<option value="' + esc(f.id) + '"' + (f.id === valor ? ' selected' : '') + '>' + esc(f.nombre || f.url) + '</option>';
+    }).join('');
+  }
+  var MEDIDAS = '<div class="tarjeta medidas"><h3>📐 Medidas recomendadas</h3><div class="rejilla">' +
+    '<div><b>Páginas del catálogo</b><p>Vertical <b>4:5</b> · ideal <b>1080 × 1350 px</b> (o 1400 × 1750). JPG, PNG o WEBP hasta 15 MB. Se ajustan solas a 880 × 1100; si no son 4:5 se agregan bordes.</p></div>' +
+    '<div><b>GIF animados</b><p>Vertical 4:5, <b>máximo 5 MB</b> (ideal menos de 2 MB para que cargue rápido en celular). Se suben sin cambios para conservar la animación.</p></div>' +
+    '<div><b>Logos</b><p><b>PNG con fondo transparente</b>, de 800 a 1000 px de ancho. Suba una versión <b>blanca</b> (para fondos oscuros) y otra <b>negra o a color</b> (para fondos claros).</p></div>' +
+    '<div><b>Textos dentro de las imágenes</b><p>Deje un margen de 60 px alrededor y use letra grande: en el celular la página se ve de unos 360 px de ancho.</p></div>' +
+    '</div></div>';
+
+  function vistaCatalogos() {
+    return '<h2>Catálogos</h2><p class="ayuda">Cree un catálogo por área (A&B, Recepción, Eventos, Grupos, Mercadeo…). Cada uno tiene su propio <b>enlace</b>, <b>tema de color</b>, <b>logos</b>, <b>formularios</b> y <b>temporadas</b>. El catálogo <b>principal</b> se abre en la dirección raíz.</p>' +
+      S.datos.catalogos.map(function (c) {
+        var principal = c.id === S.datos.principal, edit = c.id === S.catalogo, tema = TEMAS[c.tema] || {};
+        var activa = c.temporadas.filter(function (t) { return t.id === c.activa; })[0];
+        return '<div class="tarjeta temporada"><div class="muestra-tema" style="background:' + esc((tema.v || {}).fondo || '#222') + '"><span style="background:' + esc((tema.v || {}).acento || '#c9a96e') + '"></span></div>' +
+          '<div class="info"><b>' + esc(c.nombre) + '</b> ' + (principal ? '<span class="chip activa">★ Principal</span>' : '') + (edit ? ' <span class="chip">Editando</span>' : '') +
+          '<p>' + esc(tema.nombre || c.tema) + ' · ' + c.temporadas.length + ' temporada(s) · visible: ' + esc(activa ? activa.nombre : '—') + '</p>' +
+          '<p><a href="' + esc(enlacePublico(c)) + '" target="_blank" rel="noopener">' + esc(enlacePublico(c)) + '</a></p></div>' +
+          '<div class="fila">' + (edit ? '' : '<button class="btn btn-borde btn-chico" data-accion="editar-catalogo" data-id="' + esc(c.id) + '">✏️ Editar</button>') +
+          '<button class="btn btn-borde btn-chico" data-accion="duplicar-catalogo" data-id="' + esc(c.id) + '">⧉ Duplicar</button>' +
+          (principal ? '' : '<button class="btn btn-borde btn-chico" data-accion="principal-catalogo" data-id="' + esc(c.id) + '">★ Hacer principal</button>') +
+          (principal ? '' : '<button class="btn btn-peligro btn-chico" data-accion="eliminar-catalogo" data-id="' + esc(c.id) + '">Eliminar</button>') +
+          '</div></div>';
+      }).join('') +
+      '<div class="fila"><button class="btn btn-negro" data-accion="nuevo-catalogo">＋ Nuevo catálogo</button></div>';
+  }
 
   function vistaTemporadas() {
-    return '<h2>Temporadas</h2><p class="ayuda">Cada temporada es un catálogo completo (Navidad, Carnaval, Día de la Madre…). Solo <b>una</b> es visible al público. Para empezar una nueva, lo más rápido es <b>duplicar</b> la actual y cambiar sus páginas.</p>' +
-      S.datos.temporadas.map(function (t) {
-        var activa = t.id === S.datos.activa, edit = t.id === S.temporada;
+    var c = Cat();
+    return '<h2>Temporadas · ' + esc(c.nombre) + '</h2><p class="ayuda">Cada temporada es una versión completa de este catálogo (Navidad, Carnaval, Día de la Madre…). Solo <b>una</b> es visible al público. Para empezar una nueva, lo más rápido es <b>duplicar</b> la actual y cambiar sus páginas.</p>' +
+      c.temporadas.map(function (t) {
+        var activa = t.id === c.activa, edit = t.id === S.temporada;
         var paginas = (t.secciones || []).reduce(function (s, x) { return s + (x.paginas || []).length; }, 0);
         var primera = ((t.secciones || [])[0] || { paginas: [] }).paginas[0];
         return '<div class="tarjeta temporada">' +
           (primera ? '<img class="miniatura" src="' + esc(rutaImagen(primera.imagen)) + '" alt="">' : '<div class="miniatura"></div>') +
           '<div class="info"><b>' + esc(t.nombre) + '</b> ' + (activa ? '<span class="chip activa">● Visible al público</span>' : '') + (edit ? ' <span class="chip">Editando</span>' : '') +
-          '<p>' + (t.secciones || []).length + ' secciones · ' + paginas + ' páginas</p></div>' +
-          '<div class="fila">' +
+          '<p>' + (t.secciones || []).length + ' secciones · ' + paginas + ' páginas</p></div><div class="fila">' +
           (edit ? '' : '<button class="btn btn-borde btn-chico" data-accion="editar-temporada" data-id="' + esc(t.id) + '">✏️ Editar</button>') +
           '<button class="btn btn-borde btn-chico" data-accion="duplicar-temporada" data-id="' + esc(t.id) + '">⧉ Duplicar</button>' +
           (activa ? '' : '<button class="btn btn-dorado btn-chico" data-accion="activar-temporada" data-id="' + esc(t.id) + '">Hacer visible</button>') +
@@ -401,8 +451,9 @@
 
   function vistaPaginas() {
     var t = T();
-    return '<h2>Secciones y páginas · ' + esc(t.nombre) + '</h2>' +
-      '<p class="ayuda">Cada sección aparece en el menú superior del catálogo con su ícono y tiene su propio efecto. Suba las páginas como imágenes verticales (ideal 1080×1350 o 1400×1750; se ajustan solas). Los <b>GIF</b> se suben con su animación. Marque <b>Botón Reservar</b> en las páginas que ofrecen algo reservable y pegue el <b>vínculo prellenado</b> del Forms si lo tiene.</p>' +
+    return '<h2>Secciones y páginas · ' + esc(Cat().nombre) + ' · ' + esc(t.nombre) + '</h2>' +
+      '<p class="ayuda">Cada sección aparece en el menú superior del catálogo con su ícono y su propio efecto. Elija qué <b>formulario</b> abre el botón «Reservar»: puede definirlo para toda la sección o para cada página. El <b>vínculo prellenado</b> (opcional) abre el formulario con el producto ya marcado.</p>' +
+      MEDIDAS +
       (t.secciones || []).map(function (s, si) {
         return '<div class="tarjeta" data-sec="' + si + '">' +
           '<div class="seccion-cab">' +
@@ -410,9 +461,9 @@
           '<label class="campo">Nombre de la sección<input type="text" data-campo="sec.nombre" value="' + esc(s.nombre) + '"></label>' +
           '<label class="campo">Descripción (índice)<input type="text" data-campo="sec.descripcion" value="' + esc(s.descripcion) + '"></label>' +
           '<label class="campo">Efecto<select data-campo="sec.efecto">' + opciones(EFECTOS, s.efecto || 'ninguno') + '</select></label>' +
+          '<label class="campo">Formulario de la sección<select data-campo="sec.formulario">' + opcionesFormulario(s.formulario, 'El del catálogo') + '</select></label>' +
           '<div class="fila"><button class="btn-icono" title="Subir sección" data-accion="sec-subir">▲</button><button class="btn-icono" title="Bajar sección" data-accion="sec-bajar">▼</button><button class="btn-icono" title="Eliminar sección" data-accion="sec-eliminar">🗑</button></div>' +
-          '</div>' +
-          '<div class="paginas">' +
+          '</div><div class="paginas">' +
           (s.paginas || []).map(function (p, pi) {
             var nueva = !!S.pendientes[p.imagen];
             return '<div class="pagina" data-pag="' + pi + '">' +
@@ -423,12 +474,12 @@
               '<label class="campo">Descripción <small>(precio, nombre)</small><textarea data-campo="pag.descripcion" rows="2">' + esc(p.descripcion) + '</textarea></label>' +
               '<label class="check"><input type="checkbox" data-campo="pag.reservar"' + (p.reservar ? ' checked' : '') + '> Botón Reservar</label>' +
               (p.reservar ? (
-                '<label class="campo">Título en el formulario<input type="text" data-campo="pag.titulo" value="' + esc(p.titulo) + '"></label>' +
-                '<label class="campo">Vínculo prellenado del Forms <small>(opcional)</small><input type="url" data-campo="pag.vinculo" value="' + esc(p.vinculo) + '" placeholder="https://forms.cloud.microsoft/…"></label>' +
+                '<label class="campo">Formulario<select data-campo="pag.formulario">' + opcionesFormulario(p.formulario, 'El de la sección') + '</select></label>' +
+                '<label class="campo">Vínculo prellenado <small>(opcional)</small><input type="url" data-campo="pag.vinculo" value="' + esc(p.vinculo) + '" placeholder="https://forms.cloud.microsoft/…"></label>' +
                 '<label class="campo">Texto del botón <small>(opcional)</small><input type="text" data-campo="pag.boton" value="' + esc(p.boton) + '" placeholder="📅 Reservar este"></label>') : '') +
               '</div>';
           }).join('') +
-          '<label class="agregar-paginas" data-soltar><input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" data-accion="pag-agregar" hidden><span><b>＋ Agregar páginas</b>Haga clic o arrastre aquí imágenes o GIF</span></label>' +
+          '<label class="agregar-paginas" data-soltar><input type="file" multiple accept="image/jpeg,image/png,image/webp,image/gif" data-accion="pag-agregar" hidden><span><b>＋ Agregar páginas</b>Haga clic o arrastre aquí imágenes o GIF<br><small>1080 × 1350 px, vertical</small></span></label>' +
           '</div></div>';
       }).join('') +
       '<div class="fila"><button class="btn btn-negro" data-accion="sec-nueva">＋ Nueva sección</button></div>';
@@ -447,42 +498,71 @@
       '<div class="tarjeta"><h3>Carta de bienvenida (primera hoja)</h3><div class="rejilla">' +
       campo('Sobretítulo', 'T.carta.sobretitulo', ca.sobretitulo) + campo('Título', 'T.carta.titulo', ca.titulo) + campo('Subtítulo (cursiva)', 'T.carta.subtitulo', ca.subtitulo) + '</div>' +
       campo('Texto', 'T.carta.parrafos', (ca.parrafos || []).join('\n\n'), { area: true, filas: 6, ayuda: 'deje una línea en blanco entre párrafos' }) + '</div>' +
+      '<div class="tarjeta"><h3>Índice</h3><div class="rejilla">' +
+      campo('Título', 'T.indiceTitulo', t.indiceTitulo, { ph: '¿Qué le gustaría' }) + campo('Subtítulo (cursiva)', 'T.indiceSubtitulo', t.indiceSubtitulo, { ph: 'conocer?' }) + '</div></div>' +
       '<div class="tarjeta"><h3>Contraportada</h3><div class="rejilla">' +
       campo('Sobretítulo', 'T.contraportada.sobretitulo', cp.sobretitulo) + campo('Título (cursiva)', 'T.contraportada.titulo', cp.titulo) + campo('Segunda línea', 'T.contraportada.subtitulo', cp.subtitulo) + '</div></div>';
   }
 
-  function vistaGeneral() {
-    var D = S.datos, M = D.menus || {}, av = D.aviso || {};
-    return '<h2>Menús, contacto y datos</h2><p class="ayuda">Esto es común a todas las temporadas.</p>' +
-      '<div class="tarjeta"><h3>Formulario de reservas</h3>' + campo('Enlace del Microsoft Forms', 'D.formsUrl', D.formsUrl, { tipo: 'url', ayuda: 'se usa cuando una página no tiene vínculo prellenado' }) + '</div>' +
-      '<div class="tarjeta lista-editable"><h3>Menús de todo el año</h3><div class="rejilla">' +
-      campo('Sobretítulo', 'D.menus.sobretitulo', M.sobretitulo) + campo('Título', 'D.menus.titulo', M.titulo) + '</div>' +
-      (M.items || []).map(function (m, i) {
-        return '<div class="item" data-menu="' + i + '">' +
-          '<label class="campo">Nombre<input type="text" data-campo="menu.nombre" value="' + esc(m.nombre) + '"></label>' +
-          '<label class="campo">Detalle<input type="text" data-campo="menu.detalle" value="' + esc(m.detalle) + '"></label>' +
-          '<label class="campo">Precio<input type="text" data-campo="menu.precio" value="' + esc(m.precio) + '"></label>' +
-          '<label class="campo">Vínculo prellenado <small>(opcional)</small><input type="url" data-campo="menu.vinculo" value="' + esc(m.vinculo) + '"></label>' +
-          '<button class="btn-icono" title="Quitar" data-accion="menu-eliminar">🗑</button></div>';
+  function vistaDiseno() {
+    var c = Cat(), M = c.menus || {}, L = c.logos || {};
+    var logo = function (clave, titulo, ayuda, defecto, fondo) {
+      var ruta = L[clave] || defecto;
+      return '<div class="logo-caja"><div class="logo-vista" style="background:' + fondo + '">' + (ruta ? '<img src="' + esc(rutaImagen(ruta)) + '" alt="">' : '<span>Sin logo</span>') + '</div>' +
+        '<b>' + esc(titulo) + '</b><small>' + esc(ayuda) + '</small><div class="fila">' +
+        '<label class="btn btn-borde btn-chico">Subir PNG<input type="file" accept="image/png,image/webp" data-accion="logo-subir" data-logo="' + clave + '" hidden></label>' +
+        (L[clave] ? '<button class="btn btn-peligro btn-chico" data-accion="logo-quitar" data-logo="' + clave + '">' + (defecto ? 'Usar el original' : 'Quitar') + '</button>' : '') + '</div></div>';
+    };
+    return '<h2>Diseño, formularios y contacto · ' + esc(c.nombre) + '</h2><p class="ayuda">Esto aplica a todas las temporadas de este catálogo.</p>' +
+      '<div class="tarjeta"><h3>Datos del catálogo</h3><div class="rejilla">' + campo('Nombre del catálogo', 'C.nombre', c.nombre) +
+      '<label class="campo">Enlace público<input type="text" value="' + esc(enlacePublico(c)) + '" readonly></label></div></div>' +
+      '<div class="tarjeta"><h3>Tema de color</h3><div class="temas">' +
+      Object.keys(TEMAS).map(function (k) {
+        var tm = TEMAS[k];
+        return '<button class="tema' + (c.tema === k ? ' elegido' : '') + '" data-accion="elegir-tema" data-tema="' + esc(k) + '">' +
+          '<span class="tema-muestra" style="background:' + esc(tm.v.fondo) + '"><i style="background:' + esc(tm.v.tapa) + '"></i><em style="background:' + esc(tm.v.acento) + '"></em></span>' +
+          '<b>' + esc(tm.nombre) + '</b><small>' + esc(tm.descripcion) + '</small></button>';
+      }).join('') + '</div></div>' +
+      '<div class="tarjeta"><h3>Logos</h3><p class="ayuda" style="margin-bottom:12px">PNG con fondo transparente, 800 a 1000 px de ancho. Si no sube nada se usa el logo Sheraton.</p><div class="logos">' +
+      logo('claro', 'Logo para fondos oscuros', 'versión blanca o clara', LOGO_CLARO, '#1b1916') +
+      logo('oscuro', 'Logo para fondos claros', 'versión negra o a color', LOGO_OSCURO, '#f4efe8') +
+      logo('secundario', 'Logo secundario en portada', 'opcional, ej. Bakery & Deli (claro)', '', '#1b1916') +
+      logo('secundarioOscuro', 'Logo secundario sobre papel', 'opcional, versión oscura', '', '#f4efe8') +
+      '</div></div>' +
+      '<div class="tarjeta lista-editable"><h3>Formularios de Microsoft Forms</h3><p class="ayuda" style="margin-bottom:6px">Agregue todos los formularios que use este catálogo (reservas, eventos, grupos, cotizaciones…). Luego elija cuál abre cada sección o página.</p>' +
+      (c.formularios || []).map(function (f, i) {
+        return '<div class="item form" data-form="' + i + '">' +
+          '<label class="campo">Nombre<input type="text" data-campo="form.nombre" value="' + esc(f.nombre) + '" placeholder="Reservas restaurante"></label>' +
+          '<label class="campo">Enlace del formulario<input type="url" data-campo="form.url" value="' + esc(f.url) + '" placeholder="https://forms.cloud.microsoft/r/…"></label>' +
+          '<label class="check"><input type="radio" name="form-defecto" data-campo="form.defecto"' + (c.formulario === f.id ? ' checked' : '') + '> Predeterminado</label>' +
+          '<button class="btn-icono" title="Quitar" data-accion="form-eliminar">🗑</button></div>';
       }).join('') +
-      '<div class="fila" style="margin-top:10px"><button class="btn btn-borde btn-chico" data-accion="menu-agregar">＋ Agregar menú</button></div>' +
-      campo('Nota bajo los menús', 'D.menus.nota', M.nota, { area: true }) + '</div>' +
+      '<div class="fila" style="margin-top:10px"><button class="btn btn-borde btn-chico" data-accion="form-agregar">＋ Agregar formulario</button></div></div>' +
+      '<div class="tarjeta lista-editable"><h3>Página de menús</h3><label class="check" style="margin-bottom:10px"><input type="checkbox" data-campo="C.menus.mostrar"' + (M.mostrar !== false ? ' checked' : '') + '> Mostrar la página de menús en este catálogo</label>' +
+      (M.mostrar !== false ? ('<div class="rejilla">' + campo('Sobretítulo', 'C.menus.sobretitulo', M.sobretitulo) + campo('Título', 'C.menus.titulo', M.titulo) + '</div>' +
+        (M.items || []).map(function (m, i) {
+          return '<div class="item" data-menu="' + i + '">' +
+            '<label class="campo">Nombre<input type="text" data-campo="menu.nombre" value="' + esc(m.nombre) + '"></label>' +
+            '<label class="campo">Detalle<input type="text" data-campo="menu.detalle" value="' + esc(m.detalle) + '"></label>' +
+            '<label class="campo">Precio<input type="text" data-campo="menu.precio" value="' + esc(m.precio) + '"></label>' +
+            '<label class="campo">Formulario<select data-campo="menu.formulario">' + opcionesFormulario(m.formulario, 'El del catálogo') + '</select></label>' +
+            '<button class="btn-icono" title="Quitar" data-accion="menu-eliminar">🗑</button></div>';
+        }).join('') +
+        '<div class="fila" style="margin-top:10px"><button class="btn btn-borde btn-chico" data-accion="menu-agregar">＋ Agregar menú</button></div>' +
+        campo('Nota bajo los menús', 'C.menus.nota', M.nota, { area: true })) : '') + '</div>' +
       '<div class="tarjeta lista-editable"><h3>WhatsApp de contacto</h3>' +
-      (D.telefonos || []).map(function (t, i) {
+      (c.telefonos || []).map(function (t, i) {
         return '<div class="item tel" data-tel="' + i + '">' +
-          '<label class="campo">Nombre o restaurante<input type="text" data-campo="tel.lugar" value="' + esc(t.lugar) + '"></label>' +
+          '<label class="campo">Nombre o área<input type="text" data-campo="tel.lugar" value="' + esc(t.lugar) + '"></label>' +
           '<label class="campo">Número<input type="text" data-campo="tel.numero" value="' + esc(t.numero) + '" placeholder="099 123 4567"></label>' +
           '<button class="btn-icono" title="Quitar" data-accion="tel-eliminar">🗑</button></div>';
       }).join('') +
-      '<div class="fila" style="margin-top:10px"><button class="btn btn-borde btn-chico" data-accion="tel-agregar">＋ Agregar número</button></div></div>' +
-      '<div class="tarjeta"><h3>Aviso de protección de datos (GHL)</h3><p class="mensaje info">Texto legal: cámbielo solo con aprobación del área legal.</p>' +
-      campo('Título', 'D.aviso.titulo', av.titulo) + campo('Autorización', 'D.aviso.texto', av.texto, { area: true }) +
-      campo('Derechos y política', 'D.aviso.derechos', av.derechos, { area: true, ayuda: 'los correos y enlaces se convierten solos en vínculos' }) +
-      campo('Texto de la casilla', 'D.aviso.casilla', av.casilla) + '</div>';
+      '<div class="fila" style="margin-top:10px"><button class="btn btn-borde btn-chico" data-accion="tel-agregar">＋ Agregar número</button></div></div>';
   }
 
   function vistaUsuarios() {
-    return '<h2>Usuarios y acceso</h2><p class="ayuda">Cada persona debe tener su propio usuario. Las contraseñas no se guardan en ningún lado: solo sirven para abrir la llave cifrada. Si alguien olvida la suya, otro usuario lo elimina y lo vuelve a crear.</p>' +
+    var av = S.datos.aviso || {};
+    return '<h2>Usuarios, acceso y aviso legal</h2><p class="ayuda">Cada persona debe tener su propio usuario. Las contraseñas no se guardan en ningún lado: solo sirven para abrir la llave cifrada. Si alguien olvida la suya, otro usuario lo elimina y lo vuelve a crear.</p>' +
       '<div class="tarjeta usuarios"><h3>Usuarios del panel</h3>' +
       S.acceso.usuarios.map(function (u) {
         return '<div class="item"><span><b>' + esc(u.usuario) + '</b>' + (u.usuario === S.usuario ? ' (usted)' : '') + ' <small style="color:#6e6a63">· creado ' + esc(new Date(u.creado || Date.now()).toLocaleDateString('es-EC')) + '</small></span>' +
@@ -490,8 +570,12 @@
       }).join('') +
       '<div class="fila" style="margin-top:12px"><button class="btn btn-negro btn-chico" data-accion="usuario-agregar">＋ Agregar usuario</button>' +
       '<button class="btn btn-borde btn-chico" data-accion="usuario-contrasena">Cambiar mi contraseña</button></div></div>' +
-      '<div class="tarjeta"><h3>Token de GitHub</h3><p class="ayuda" style="margin-bottom:10px">Cuando el token venza, cree uno nuevo con los mismos permisos y reemplácelo aquí. Los usuarios y contraseñas se mantienen.</p>' +
-      '<button class="btn btn-borde btn-chico" data-accion="token-reemplazar">Reemplazar token</button></div>';
+      '<div class="tarjeta"><h3>Token de GitHub</h3><p class="ayuda" style="margin-bottom:10px">Cuando el token venza, regenérelo en GitHub (mismos permisos) y reemplácelo aquí. Los usuarios y contraseñas se mantienen.</p>' +
+      '<button class="btn btn-borde btn-chico" data-accion="token-reemplazar">Reemplazar token</button></div>' +
+      '<div class="tarjeta"><h3>Aviso de protección de datos (todos los catálogos)</h3><p class="mensaje info">Texto legal: cámbielo solo con aprobación del área legal.</p>' +
+      campo('Título', 'D.aviso.titulo', av.titulo) + campo('Autorización', 'D.aviso.texto', av.texto, { area: true }) +
+      campo('Derechos y política', 'D.aviso.derechos', av.derechos, { area: true, ayuda: 'los correos y enlaces se convierten solos en vínculos' }) +
+      campo('Texto de la casilla', 'D.aviso.casilla', av.casilla) + '</div>';
   }
 
   /* ═══════════════ Edición de campos ═══════════════ */
@@ -504,28 +588,33 @@
     var el = e.target, ruta = el.getAttribute('data-campo');
     if (!ruta) return;
     var valor = el.type === 'checkbox' ? el.checked : el.value;
-    var t = T(), repintar = false;
+    var c = Cat(), t = T(), repintar = false;
     var p = ruta.indexOf('.'), ambito = ruta.slice(0, p), clave = ruta.slice(p + 1);
-    if (el.type === 'url' && valor && !/^https:\/\//.test(valor)) el.classList.add('invalido'); else el.classList.remove('invalido');
-    if (el.getAttribute('data-campo') === 'pag.vinculo' && valor && !/^https:\/\/forms\.(cloud\.microsoft|office\.com)\//.test(valor)) el.classList.add('invalido');
+    if (el.type === 'url') el.classList.toggle('invalido', !!valor && !FORMS_OK.test(valor));
     if (ambito === 'T') {
       if (clave === 'carta.parrafos') valor = valor.split(/\n\s*\n/).map(function (x) { return x.trim(); }).filter(Boolean);
       asignar(t, clave, valor);
       if (clave === 'nombre') actualizarCabecera();
+    } else if (ambito === 'C') {
+      asignar(c, clave, valor);
+      if (clave === 'nombre') actualizarCabecera();
+      if (clave === 'menus.mostrar') repintar = true;
     } else if (ambito === 'D') {
       asignar(S.datos, clave, valor);
     } else if (ambito === 'sec') {
-      var si = +el.closest('[data-sec]').getAttribute('data-sec');
-      t.secciones[si][clave] = valor;
+      t.secciones[+el.closest('[data-sec]').getAttribute('data-sec')][clave] = valor;
     } else if (ambito === 'pag') {
       var s = t.secciones[+el.closest('[data-sec]').getAttribute('data-sec')];
       var pg = s.paginas[+el.closest('[data-pag]').getAttribute('data-pag')];
       pg[clave] = valor;
-      if (clave === 'reservar') { if (valor && !pg.titulo) pg.titulo = s.nombre; repintar = true; }
+      if (clave === 'reservar') repintar = true;
     } else if (ambito === 'menu') {
-      S.datos.menus.items[+el.closest('[data-menu]').getAttribute('data-menu')][clave] = valor;
+      c.menus.items[+el.closest('[data-menu]').getAttribute('data-menu')][clave] = valor;
     } else if (ambito === 'tel') {
-      S.datos.telefonos[+el.closest('[data-tel]').getAttribute('data-tel')][clave] = valor;
+      c.telefonos[+el.closest('[data-tel]').getAttribute('data-tel')][clave] = valor;
+    } else if (ambito === 'form') {
+      var f = c.formularios[+el.closest('[data-form]').getAttribute('data-form')];
+      if (clave === 'defecto') c.formulario = f.id; else f[clave] = valor;
     }
     cambio(repintar);
   }
@@ -537,37 +626,60 @@
     var lista = Array.prototype.slice.call(archivos || []);
     if (!lista.length) return;
     aviso('Procesando ' + lista.length + ' imagen(es)…');
-    var errores = [];
-    lista.reduce(function (p, archivo, k) {
-      return p.then(function () {
+    var errores = [], notas = [];
+    lista.reduce(function (pr, archivo, k) {
+      return pr.then(function () {
         return prepararImagen(archivo).then(function (prep) {
-          var ruta = registrarImagen(prep);
+          if (prep.aviso) notas.push(prep.aviso);
+          var ruta = registrarImagen(prep, 'temporadas/' + Cat().id + '-' + t.id);
           if (reemplazarIndice != null && k === 0) {
             var viejo = s.paginas[reemplazarIndice].imagen;
             if (S.pendientes[viejo]) delete S.pendientes[viejo];
             s.paginas[reemplazarIndice].imagen = ruta;
           } else {
-            s.paginas.push({ imagen: ruta, descripcion: archivo.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '), reservar: true, titulo: s.nombre, vinculo: '' });
+            s.paginas.push({ imagen: ruta, descripcion: archivo.name.replace(/\.[^.]+$/, '').replace(/[-_]+/g, ' '), reservar: true, vinculo: '' });
           }
         }).catch(function (e) { errores.push(e.message); });
       });
     }, Promise.resolve()).then(function () {
       cambio(true);
-      if (errores.length) aviso(errores.join(' · '), 'error'); else aviso('Imágenes listas. Recuerde publicar.', 'ok');
+      if (errores.length) aviso(errores.join(' · '), 'error');
+      else aviso(notas.length ? notas.join(' · ') : 'Imágenes listas. Recuerde publicar.', notas.length ? '' : 'ok');
     });
+  }
+  function subirLogo(archivo, clave) {
+    if (!archivo) return;
+    prepararLogo(archivo).then(function (prep) {
+      var c = Cat(); c.logos = c.logos || {};
+      if (S.pendientes[c.logos[clave]]) delete S.pendientes[c.logos[clave]];
+      c.logos[clave] = registrarImagen(prep, 'logos/' + c.id);
+      cambio(true); aviso('Logo listo. Recuerde publicar.', 'ok');
+    }).catch(function (e) { aviso(e.message, 'error'); });
   }
 
   function alAccion(e) {
     var el = e.target.closest('[data-accion]');
     if (!el || el.tagName === 'INPUT') return;
-    var acc = el.getAttribute('data-accion'), t = S.datos && T();
+    var acc = el.getAttribute('data-accion'), c = S.datos && Cat(), t = S.datos && T();
     var secEl = el.closest('[data-sec]'), si = secEl ? +secEl.getAttribute('data-sec') : -1;
     var pagEl = el.closest('[data-pag]'), pi = pagEl ? +pagEl.getAttribute('data-pag') : -1;
     switch (acc) {
       case 'vista-previa': return vistaPrevia();
       case 'publicar': return publicar();
       case 'salir': return salir();
-      case 'editar-temporada': S.temporada = el.getAttribute('data-id'); S.pestana = 'paginas'; return cambio(true) || pintarTodo();
+      case 'editar-catalogo': S.catalogo = el.getAttribute('data-id'); S.temporada = Cat().activa; S.pestana = 'paginas'; return pintarTodo();
+      case 'nuevo-catalogo': return nuevoCatalogo();
+      case 'duplicar-catalogo': return duplicarCatalogo(el.getAttribute('data-id'));
+      case 'principal-catalogo': S.datos.principal = el.getAttribute('data-id'); cambio(true); return aviso('Será el catálogo de la dirección principal al publicar.', 'ok');
+      case 'eliminar-catalogo': return eliminarCatalogo(el.getAttribute('data-id'));
+      case 'elegir-tema': c.tema = el.getAttribute('data-tema'); return cambio(true);
+      case 'logo-quitar': delete S.pendientes[c.logos[el.getAttribute('data-logo')]]; c.logos[el.getAttribute('data-logo')] = ''; return cambio(true);
+      case 'form-agregar': c.formularios = c.formularios || []; c.formularios.push({ id: 'f' + Date.now().toString(36), nombre: '', url: '' }); if (!c.formulario) c.formulario = c.formularios[0].id; return cambio(true);
+      case 'form-eliminar':
+        var fi = +el.closest('[data-form]').getAttribute('data-form'), quitado = c.formularios.splice(fi, 1)[0];
+        if (c.formulario === quitado.id) c.formulario = (c.formularios[0] || {}).id || '';
+        return cambio(true);
+      case 'editar-temporada': S.temporada = el.getAttribute('data-id'); S.pestana = 'paginas'; return pintarTodo();
       case 'duplicar-temporada': return duplicarTemporada(el.getAttribute('data-id'));
       case 'nueva-temporada': return nuevaTemporada();
       case 'activar-temporada': return activarTemporada(el.getAttribute('data-id'));
@@ -586,15 +698,15 @@
         ], 'Crear').then(function (v) {
           if (!v || !v.nombre) return;
           var id = slug(v.nombre), n = 2; while (t.secciones.some(function (s) { return s.id === id; })) id = slug(v.nombre) + '-' + n++;
-          t.secciones.push({ id: id, nombre: v.nombre, icono: v.icono || '⭐', descripcion: '', efecto: v.efecto, paginas: [] }); cambio(true);
+          t.secciones.push({ id: id, nombre: v.nombre, icono: v.icono || '⭐', descripcion: '', efecto: v.efecto, formulario: '', paginas: [] }); cambio(true);
         });
       case 'pag-izq': if (mover(t.secciones[si].paginas, pi, -1)) cambio(true); return;
       case 'pag-der': if (mover(t.secciones[si].paginas, pi, 1)) cambio(true); return;
       case 'pag-eliminar': var quitada = t.secciones[si].paginas.splice(pi, 1)[0]; delete S.pendientes[quitada.imagen]; cambio(true); aviso('Página quitada.'); return;
-      case 'menu-agregar': S.datos.menus.items.push({ nombre: '', detalle: '', precio: '', vinculo: '' }); return cambio(true);
-      case 'menu-eliminar': S.datos.menus.items.splice(+el.closest('[data-menu]').getAttribute('data-menu'), 1); return cambio(true);
-      case 'tel-agregar': S.datos.telefonos.push({ lugar: '', numero: '' }); return cambio(true);
-      case 'tel-eliminar': S.datos.telefonos.splice(+el.closest('[data-tel]').getAttribute('data-tel'), 1); return cambio(true);
+      case 'menu-agregar': c.menus.items = c.menus.items || []; c.menus.items.push({ nombre: '', detalle: '', precio: '', formulario: '' }); return cambio(true);
+      case 'menu-eliminar': c.menus.items.splice(+el.closest('[data-menu]').getAttribute('data-menu'), 1); return cambio(true);
+      case 'tel-agregar': c.telefonos = c.telefonos || []; c.telefonos.push({ lugar: '', numero: '' }); return cambio(true);
+      case 'tel-eliminar': c.telefonos.splice(+el.closest('[data-tel]').getAttribute('data-tel'), 1); return cambio(true);
       case 'usuario-agregar': return agregarUsuario();
       case 'usuario-eliminar': return eliminarUsuario(el.getAttribute('data-usuario'));
       case 'usuario-contrasena': return cambiarContrasena();
@@ -602,14 +714,78 @@
     }
   }
 
+  /* ═══════════════ Catálogos ═══════════════ */
+  function idCatalogoValido(id) {
+    if (!/^[a-z0-9][a-z0-9-]{1,30}$/.test(id)) return 'El enlace debe tener 2 a 31 letras minúsculas, números o guiones.';
+    if (RESERVADOS.indexOf(id) >= 0) return 'Ese enlace está reservado; elija otro.';
+    if (S.datos.catalogos.some(function (c) { return c.id === id; })) return 'Ya existe un catálogo con ese enlace.';
+    return '';
+  }
+  function temporadaVacia(nombre, efecto) {
+    return {
+      id: slug(nombre), nombre: nombre, efectoPortada: efecto,
+      bienvenida: { sobretitulo: 'Sheraton Quito', titulo: nombre, fecha: '' },
+      portada: { sobretitulo: 'Sheraton Quito', titulo: nombre, subtitulo: '', fecha: '' },
+      carta: { sobretitulo: 'Bienvenidos', titulo: 'Bienvenidos', subtitulo: '', parrafos: ['Pase las páginas, elija lo que más le guste y envíenos su solicitud desde el mismo catálogo.'] },
+      contraportada: { sobretitulo: 'Gracias por preferirnos', titulo: 'Sheraton', subtitulo: 'Quito' },
+      secciones: [{ id: 'principal', nombre: nombre, icono: '⭐', descripcion: '', efecto: efecto, formulario: '', paginas: [] }],
+    };
+  }
+  function nuevoCatalogo() {
+    return dialogo('Nuevo catálogo', 'Por ejemplo «Recepción», «Eventos» o «Grupos». Cada catálogo tiene su enlace propio.', [
+      { id: 'nombre', etiqueta: 'Nombre', valor: '' },
+      { id: 'enlace', etiqueta: 'Enlace (se agrega a la dirección)', valor: '', ayuda: 'ej. eventos → …github.io/eventos/' },
+      { id: 'tema', etiqueta: 'Tema de color', tipo: 'select', opciones: Object.keys(TEMAS).map(function (k) { return [k, TEMAS[k].nombre]; }), valor: 'oceano' },
+      { id: 'formNombre', etiqueta: 'Nombre del formulario', valor: 'Solicitudes' },
+      { id: 'formUrl', etiqueta: 'Enlace del Microsoft Forms', valor: '', tipo: 'url' },
+    ], 'Crear').then(function (v) {
+      if (!v || !v.nombre) return;
+      var id = slug(v.enlace || v.nombre), err = idCatalogoValido(id);
+      if (err) return aviso(err, 'error');
+      if (v.formUrl && !FORMS_OK.test(v.formUrl)) return aviso('El enlace del formulario debe ser de Microsoft Forms.', 'error');
+      var temp = temporadaVacia(v.nombre, 'ninguno');
+      S.datos.catalogos.push({
+        id: id, nombre: v.nombre, activa: temp.id, tema: v.tema, logos: { claro: '', oscuro: '', secundario: '', secundarioOscuro: '' },
+        formularios: [{ id: 'f1', nombre: v.formNombre || 'Solicitudes', url: v.formUrl || '' }], formulario: 'f1',
+        telefonos: [], menus: { mostrar: false, sobretitulo: '', titulo: 'Nuestros servicios', items: [], nota: '' }, temporadas: [temp],
+      });
+      S.catalogo = id; S.temporada = temp.id; S.pestana = 'paginas'; cambio(true); pintarTodo();
+      aviso('Catálogo creado. Agregue sus páginas y publíquelo.', 'ok');
+    });
+  }
+  function duplicarCatalogo(id) {
+    var orig = S.datos.catalogos.filter(function (c) { return c.id === id; })[0];
+    return dialogo('Duplicar catálogo', 'Se copia todo: tema, logos, formularios, temporadas y páginas.', [
+      { id: 'nombre', etiqueta: 'Nombre del nuevo catálogo', valor: 'Copia de ' + orig.nombre },
+      { id: 'enlace', etiqueta: 'Enlace', valor: '' },
+    ], 'Duplicar').then(function (v) {
+      if (!v || !v.nombre) return;
+      var nid = slug(v.enlace || v.nombre), err = idCatalogoValido(nid);
+      if (err) return aviso(err, 'error');
+      var copia = clonar(orig); copia.id = nid; copia.nombre = v.nombre;
+      S.datos.catalogos.push(copia); S.catalogo = nid; S.temporada = copia.activa; cambio(true); pintarTodo();
+      aviso('Catálogo duplicado.', 'ok');
+    });
+  }
+  function eliminarCatalogo(id) {
+    var c = S.datos.catalogos.filter(function (x) { return x.id === id; })[0];
+    return dialogo('Eliminar catálogo', '¿Eliminar «' + esc(c.nombre) + '» con todas sus temporadas? Su enlace dejará de funcionar al publicar.', [], 'Eliminar', true).then(function (v) {
+      if (!v) return;
+      S.datos.catalogos = S.datos.catalogos.filter(function (x) { return x.id !== id; });
+      S.eliminados = (S.eliminados || []).concat([id]);
+      if (S.catalogo === id) { S.catalogo = S.datos.principal; S.temporada = Cat().activa; }
+      cambio(true); pintarTodo();
+    });
+  }
+
   /* ═══════════════ Temporadas ═══════════════ */
-  function idUnico(nombre) { var id = slug(nombre), n = 2; while (S.datos.temporadas.some(function (t) { return t.id === id; })) id = slug(nombre) + '-' + n++; return id; }
+  function idUnico(nombre) { var c = Cat(), id = slug(nombre), n = 2; while (c.temporadas.some(function (t) { return t.id === id; })) id = slug(nombre) + '-' + n++; return id; }
   function duplicarTemporada(id) {
-    var orig = S.datos.temporadas.filter(function (t) { return t.id === id; })[0];
+    var orig = Cat().temporadas.filter(function (t) { return t.id === id; })[0];
     return dialogo('Duplicar temporada', 'Se copia todo (textos, secciones y páginas). Después cambie lo que necesite.', [{ id: 'nombre', etiqueta: 'Nombre de la nueva temporada', valor: 'Copia de ' + orig.nombre }], 'Duplicar').then(function (v) {
       if (!v || !v.nombre) return;
       var copia = clonar(orig); copia.id = idUnico(v.nombre); copia.nombre = v.nombre;
-      S.datos.temporadas.push(copia); S.temporada = copia.id; S.pestana = 'paginas'; cambio(true); pintarTodo();
+      Cat().temporadas.push(copia); S.temporada = copia.id; S.pestana = 'paginas'; cambio(true); pintarTodo();
       aviso('Temporada creada. Todavía no es visible al público.', 'ok');
     });
   }
@@ -619,32 +795,26 @@
       { id: 'efecto', etiqueta: 'Efecto principal', tipo: 'select', opciones: EFECTOS, valor: 'confeti' },
     ], 'Crear').then(function (v) {
       if (!v || !v.nombre) return;
-      var actual = T();
-      S.datos.temporadas.push({
-        id: idUnico(v.nombre), nombre: v.nombre, efectoPortada: v.efecto,
-        bienvenida: { sobretitulo: 'Restaurantes y Bares', titulo: 'Catálogo de temporada', fecha: v.nombre },
-        portada: { sobretitulo: 'Restaurantes y Bares', titulo: 'Catálogo', subtitulo: 'de temporada', fecha: v.nombre },
-        carta: clonar(actual.carta || {}), contraportada: { sobretitulo: 'Gracias por preferirnos', titulo: '', subtitulo: '' },
-        secciones: [{ id: slug(v.nombre), nombre: v.nombre, icono: '⭐', descripcion: '', efecto: v.efecto, paginas: [] }],
-      });
-      S.temporada = S.datos.temporadas[S.datos.temporadas.length - 1].id; S.pestana = 'paginas'; cambio(true); pintarTodo();
+      var nueva = temporadaVacia(v.nombre, v.efecto); nueva.id = idUnico(v.nombre);
+      var actual = T(); if (actual && actual.carta) nueva.carta = clonar(actual.carta);
+      Cat().temporadas.push(nueva); S.temporada = nueva.id; S.pestana = 'paginas'; cambio(true); pintarTodo();
       aviso('Temporada creada. Agregue sus páginas y textos.', 'ok');
     });
   }
   function activarTemporada(id) {
-    var t = S.datos.temporadas.filter(function (x) { return x.id === id; })[0];
+    var t = Cat().temporadas.filter(function (x) { return x.id === id; })[0];
     var paginas = (t.secciones || []).reduce(function (s, x) { return s + (x.paginas || []).length; }, 0);
     if (!paginas) return aviso('Esa temporada no tiene páginas todavía.', 'error');
-    return dialogo('Hacer visible', 'Al <b>publicar</b>, el catálogo público mostrará «' + esc(t.nombre) + '» en lugar de la temporada actual. La anterior queda guardada.', [], 'Hacer visible').then(function (v) {
-      if (!v) return; S.datos.activa = id; cambio(true); pintarTodo(); aviso('Listo. Pulse «Publicar» para aplicarlo.', 'ok');
+    return dialogo('Hacer visible', 'Al <b>publicar</b>, el catálogo mostrará «' + esc(t.nombre) + '» en lugar de la temporada actual. La anterior queda guardada.', [], 'Hacer visible').then(function (v) {
+      if (!v) return; Cat().activa = id; cambio(true); pintarTodo(); aviso('Listo. Pulse «Publicar» para aplicarlo.', 'ok');
     });
   }
   function eliminarTemporada(id) {
-    var t = S.datos.temporadas.filter(function (x) { return x.id === id; })[0];
+    var c = Cat(), t = c.temporadas.filter(function (x) { return x.id === id; })[0];
     return dialogo('Eliminar temporada', '¿Eliminar «' + esc(t.nombre) + '»? Las imágenes ya publicadas se conservan en el repositorio.', [], 'Eliminar', true).then(function (v) {
       if (!v) return;
-      S.datos.temporadas = S.datos.temporadas.filter(function (x) { return x.id !== id; });
-      if (S.temporada === id) S.temporada = S.datos.activa;
+      c.temporadas = c.temporadas.filter(function (x) { return x.id !== id; });
+      if (S.temporada === id) S.temporada = c.activa;
       cambio(true); pintarTodo();
     });
   }
@@ -652,46 +822,59 @@
   /* ═══════════════ Vista previa y publicación ═══════════════ */
   function validar() {
     var errores = [];
-    var activa = S.datos.temporadas.filter(function (t) { return t.id === S.datos.activa; })[0];
-    if (!activa) errores.push('No hay temporada visible.');
-    S.datos.temporadas.forEach(function (t) {
-      (t.secciones || []).forEach(function (s) {
-        if (!s.nombre) errores.push('Hay una sección sin nombre en «' + t.nombre + '».');
-        (s.paginas || []).forEach(function (p, i) {
-          if (p.vinculo && !/^https:\/\/forms\.(cloud\.microsoft|office\.com)\//.test(p.vinculo)) errores.push('«' + s.nombre + '», página ' + (i + 1) + ': el vínculo debe ser de Microsoft Forms.');
+    S.datos.catalogos.forEach(function (c) {
+      if (!c.temporadas.some(function (t) { return t.id === c.activa; })) errores.push('«' + c.nombre + '» no tiene temporada visible.');
+      if (!(c.formularios || []).some(function (f) { return FORMS_OK.test(f.url); })) errores.push('«' + c.nombre + '» necesita al menos un formulario de Microsoft Forms.');
+      (c.formularios || []).forEach(function (f) { if (f.url && !FORMS_OK.test(f.url)) errores.push('«' + c.nombre + '»: el formulario «' + (f.nombre || f.url) + '» no es un enlace de Microsoft Forms.'); });
+      c.temporadas.forEach(function (t) {
+        (t.secciones || []).forEach(function (s) {
+          if (!s.nombre) errores.push('Hay una sección sin nombre en «' + c.nombre + ' · ' + t.nombre + '».');
+          (s.paginas || []).forEach(function (p, i) {
+            if (p.vinculo && !FORMS_OK.test(p.vinculo)) errores.push('«' + s.nombre + '», página ' + (i + 1) + ': el vínculo debe ser de Microsoft Forms.');
+          });
         });
       });
     });
-    if (S.datos.formsUrl && !/^https:\/\/forms\.(cloud\.microsoft|office\.com)\//.test(S.datos.formsUrl)) errores.push('El enlace del formulario debe ser de Microsoft Forms.');
     return errores;
   }
   function vistaPrevia() {
     var imagenes = {}; Object.keys(S.pendientes).forEach(function (r) { imagenes[r] = S.pendientes[r].dataUrl; });
-    try {
-      localStorage.setItem('catalogo-borrador', JSON.stringify({ datos: S.datos, temporada: S.temporada, imagenes: imagenes }));
-    } catch (e) {
-      return aviso('Hay demasiadas imágenes nuevas para la vista previa. Publique primero o quite algunas.', 'error');
-    }
+    try { localStorage.setItem('catalogo-borrador', JSON.stringify({ datos: S.datos, catalogo: S.catalogo, temporada: S.temporada, imagenes: imagenes })); }
+    catch (e) { return aviso('Hay demasiadas imágenes nuevas para la vista previa. Publique primero o quite algunas.', 'error'); }
     window.open('../?borrador=1', '_blank', 'noopener');
+  }
+  // Página corta /<catálogo>/ que redirige al catálogo (también sirve para la vista previa en WhatsApp).
+  function paginaRedireccion(c) {
+    var titulo = esc(c.nombre + ' · Sheraton Quito');
+    return '<!doctype html><html lang="es"><head><meta charset="utf-8"><title>' + titulo + '</title>' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1">' +
+      '<meta property="og:title" content="' + titulo + '"><meta property="og:description" content="Catálogo de ' + esc(c.nombre) + '. Solicite en línea.">' +
+      '<meta property="og:url" content="https://' + REPO.nombre + '/' + c.id + '/">' +
+      '<meta http-equiv="refresh" content="0; url=../?c=' + c.id + '"><link rel="canonical" href="../?c=' + c.id + '"></head>' +
+      '<body style="font-family:sans-serif;background:#111;color:#eee;text-align:center;padding:40px">' +
+      '<p>Abriendo el catálogo… <a style="color:#e3cc9c" href="../?c=' + c.id + '">continuar</a></p></body></html>';
   }
   function publicar() {
     if (!hayCambios()) return aviso('No hay cambios por publicar.');
     var errores = validar();
     if (errores.length) return aviso(errores[0], 'error');
-    // Solo se suben las imágenes nuevas que siguen en uso.
     var usadas = {};
-    S.datos.temporadas.forEach(function (t) { (t.secciones || []).forEach(function (s) { (s.paginas || []).forEach(function (p) { usadas[p.imagen] = 1; }); }); });
+    S.datos.catalogos.forEach(function (c) {
+      Object.keys(c.logos || {}).forEach(function (k) { if (c.logos[k]) usadas[c.logos[k]] = 1; });
+      c.temporadas.forEach(function (t) { (t.secciones || []).forEach(function (s) { (s.paginas || []).forEach(function (p) { usadas[p.imagen] = 1; }); }); });
+    });
     var imagenes = Object.keys(S.pendientes).filter(function (r) { return usadas[r]; });
-    var activa = S.datos.temporadas.filter(function (t) { return t.id === S.datos.activa; })[0];
-    return dialogo('Publicar cambios', 'Se publicarán ' + imagenes.length + ' imagen(es) nuevas y los textos. El público verá «' + esc(activa.nombre) + '» en 1 a 2 minutos.', [], 'Publicar').then(function (v) {
+    return dialogo('Publicar cambios', 'Se publicarán ' + imagenes.length + ' imagen(es) nuevas y todos los textos de ' + S.datos.catalogos.length + ' catálogo(s). Se verá en 1 a 2 minutos.', [], 'Publicar').then(function (v) {
       if (!v) return;
       var b = $('#boton-publicar'); b.disabled = true; b.textContent = 'Publicando…';
       S.datos.actualizado = new Date().toISOString(); S.datos.actualizadoPor = S.usuario;
       var archivos = imagenes.map(function (r) { return { ruta: r, base64: S.pendientes[r].base64 }; });
+      S.datos.catalogos.forEach(function (c) { if (c.id !== S.datos.principal) archivos.push({ ruta: c.id + '/index.html', base64: textoAB64(paginaRedireccion(c)) }); });
       archivos.push({ ruta: RUTA_DATOS, base64: textoAB64(JSON.stringify(S.datos, null, 2)) });
-      return publicarArchivos(archivos, [], 'Panel: actualización del catálogo por ' + S.usuario).then(function () {
-        S.pendientes = {}; S.original = JSON.stringify(S.datos); borrarBorradorLocal();
-        aviso('¡Publicado! El catálogo se actualiza en 1 a 2 minutos.', 'ok');
+      var borrar = (S.eliminados || []).map(function (id) { return id + '/index.html'; });
+      return publicarArchivos(archivos, borrar, 'Panel: actualización de catálogos por ' + S.usuario).then(function () {
+        S.pendientes = {}; S.eliminados = []; S.original = JSON.stringify(S.datos); borrarBorradorLocal();
+        aviso('¡Publicado! Los catálogos se actualizan en 1 a 2 minutos.', 'ok');
       }).catch(function (e) {
         aviso('No se pudo publicar: ' + (e.status === 401 ? 'el token venció.' : e.message), 'error');
       }).then(function () { b.disabled = false; pintarTodo(); });
@@ -701,6 +884,7 @@
     var seguir = hayCambios() ? dialogo('Salir', 'Tiene cambios sin publicar. Quedan guardados en este equipo como borrador.', [], 'Salir') : Promise.resolve({});
     seguir.then(function (v) {
       if (!v) return;
+      if (hayCambios()) guardarBorradorLocal();
       S.token = null; S.maestra = null; S.maestraBytes = null; S.datos = null;
       $('#app').hidden = true; $('#pantalla-acceso').hidden = false; mostrarLogin();
     });
@@ -759,10 +943,11 @@
   document.addEventListener('click', alAccion);
   document.addEventListener('input', function (e) { if (e.target.closest('#contenido')) alEditar(e); });
   document.addEventListener('change', function (e) {
-    var el = e.target;
-    if (el.matches('input[type=checkbox], select') && el.closest('#contenido')) alEditar(e);
-    if (el.getAttribute('data-accion') === 'pag-agregar') { agregarArchivos(el.files, +el.closest('[data-sec]').getAttribute('data-sec')); el.value = ''; }
-    if (el.getAttribute('data-accion') === 'pag-reemplazar') { agregarArchivos(el.files, +el.closest('[data-sec]').getAttribute('data-sec'), +el.closest('[data-pag]').getAttribute('data-pag')); el.value = ''; }
+    var el = e.target, acc = el.getAttribute('data-accion');
+    if (el.matches('input[type=checkbox], input[type=radio], select') && el.closest('#contenido')) alEditar(e);
+    if (acc === 'pag-agregar') { agregarArchivos(el.files, +el.closest('[data-sec]').getAttribute('data-sec')); el.value = ''; }
+    if (acc === 'pag-reemplazar') { agregarArchivos(el.files, +el.closest('[data-sec]').getAttribute('data-sec'), +el.closest('[data-pag]').getAttribute('data-pag')); el.value = ''; }
+    if (acc === 'logo-subir') { subirLogo(el.files[0], el.getAttribute('data-logo')); el.value = ''; }
   });
   // Arrastrar y soltar imágenes sobre «Agregar páginas».
   document.addEventListener('dragover', function (e) { var z = e.target.closest && e.target.closest('[data-soltar]'); if (z) { e.preventDefault(); z.classList.add('encima'); } });
@@ -773,6 +958,7 @@
     agregarArchivos(e.dataTransfer.files, +z.closest('[data-sec]').getAttribute('data-sec'));
   });
   $('#pestanas').addEventListener('click', function (e) { var b = e.target.closest('[data-pestana]'); if (b) { S.pestana = b.getAttribute('data-pestana'); pintarTodo(); } });
+  $('#catalogo-editando').addEventListener('change', function (e) { S.catalogo = e.target.value; S.temporada = Cat().activa; pintarTodo(); });
   $('#temporada-editando').addEventListener('change', function (e) { S.temporada = e.target.value; pintarTodo(); });
   window.addEventListener('beforeunload', function (e) { if (S.datos && hayCambios()) { guardarBorradorLocal(); e.preventDefault(); e.returnValue = ''; } });
 

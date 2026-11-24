@@ -8,7 +8,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests">
   <meta name="referrer" content="no-referrer">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="admin.css?v=4">
+  <link rel="stylesheet" href="admin.css?v=5">
 </head>
 <body>
   <!-- Acceso: inicio de sesión o configuración inicial -->
@@ -27,7 +27,10 @@
     <header class="cabecera">
       <img src="../assets/logos/sheraton-blanco.png" alt="Sheraton Quito" class="cabecera-logo">
       <div class="cabecera-titulo"><b>Panel del catálogo</b><span id="usuario-actual"></span></div>
-      <label class="selector-temporada">Editando
+      <label class="selector-temporada">Catálogo
+        <select id="catalogo-editando" aria-label="Catálogo que se está editando"></select>
+      </label>
+      <label class="selector-temporada">Temporada
         <select id="temporada-editando" aria-label="Temporada que se está editando"></select>
       </label>
       <span id="estado-temporada" class="chip"></span>
@@ -38,11 +41,12 @@
       </div>
     </header>
     <nav class="pestanas" id="pestanas">
+      <button data-pestana="catalogos">🗂️ Catálogos</button>
       <button data-pestana="temporadas">📚 Temporadas</button>
       <button data-pestana="paginas">🖼️ Secciones y páginas</button>
       <button data-pestana="textos">✍️ Textos de la temporada</button>
-      <button data-pestana="general">🍽️ Menús, contacto y datos</button>
-      <button data-pestana="usuarios">🔐 Usuarios y acceso</button>
+      <button data-pestana="diseno">🎨 Diseño, formularios y contacto</button>
+      <button data-pestana="usuarios">🔐 Usuarios y aviso legal</button>
     </nav>
     <main id="contenido" class="contenido"></main>
   </div>
@@ -50,6 +54,7 @@
   <dialog id="dialogo" class="dialogo"><form method="dialog" id="dialogo-form"></form></dialog>
   <div id="aviso" class="aviso" role="status" aria-live="polite" hidden></div>
 
-  <script src="admin.js?v=4"></script>
+  <script src="../temas.js?v=5"></script>
+  <script src="admin.js?v=5"></script>
 </body>
 </html>

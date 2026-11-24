@@ -19,7 +19,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="estilos.css?v=4">
+  <link rel="stylesheet" href="estilos.css?v=5">
 </head>
 <body>
   <!-- Todo el contenido (textos, temporadas, páginas, menús, teléfonos) viene de data/catalogo.json
@@ -30,7 +30,7 @@
   <!-- 1 · Bienvenida + aviso de datos: al aceptar se abre el catálogo -->
   <section id="bienvenida" class="bienvenida">
     <div class="bienvenida-caja">
-      <img src="assets/logos/sheraton-negro.png" alt="Sheraton Quito Hotel" class="logo-grande">
+      <img src="assets/logos/sheraton-negro.png" alt="Sheraton Quito Hotel" class="logo-grande" data-logo="oscuro">
       <p class="sobretitulo oscuro" id="bv-sobretitulo">Restaurantes y Bares</p>
       <h1 id="bv-titulo">Catálogo de temporada</h1>
       <p class="fecha" id="bv-fecha"></p>
@@ -53,7 +53,7 @@
   <!-- 2 · La revista -->
   <header class="barra">
     <button class="barra-inicio" data-inicio aria-label="Volver a la página principal" title="Página principal">
-      <img src="assets/logos/sheraton-blanco.png" alt="Sheraton Quito" class="barra-logo">
+      <img src="assets/logos/sheraton-blanco.png" alt="Sheraton Quito" class="barra-logo" data-logo="tema">
     </button>
     <nav class="barra-nav" id="barra-nav" aria-label="Secciones"></nav>
   </header>
@@ -103,8 +103,9 @@
     <div class="zoom-scroll"><img id="zoom-img" alt=""></div>
   </div>
 
-  <script src="vendor/page-flip.browser.js?v=4"></script>
-  <script src="vendor/qrcode.js?v=4"></script>
-  <script src="app.js?v=4"></script>
+  <script src="vendor/page-flip.browser.js?v=5"></script>
+  <script src="vendor/qrcode.js?v=5"></script>
+  <script src="temas.js?v=5"></script>
+  <script src="app.js?v=5"></script>
 </body>
 </html>
