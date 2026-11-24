@@ -512,6 +512,7 @@
       var ruta = L[clave] || defecto;
       return '<div class="logo-caja"><div class="logo-vista" style="background:' + fondo + '">' + (ruta ? '<img src="' + esc(rutaImagen(ruta)) + '" alt="">' : '<span>Sin logo</span>') + '</div>' +
         '<b>' + esc(titulo) + '</b><small>' + esc(ayuda) + '</small><div class="fila">' +
+        '<button class="btn btn-dorado btn-chico" data-accion="logo-biblioteca" data-logo="' + clave + '">📚 Biblioteca</button>' +
         '<label class="btn btn-borde btn-chico">Subir PNG<input type="file" accept="image/png,image/webp" data-accion="logo-subir" data-logo="' + clave + '" hidden></label>' +
         (L[clave] ? '<button class="btn btn-peligro btn-chico" data-accion="logo-quitar" data-logo="' + clave + '">' + (defecto ? 'Usar el original' : 'Quitar') + '</button>' : '') + '</div></div>';
     };
@@ -525,7 +526,7 @@
           '<span class="tema-muestra" style="background:' + esc(tm.v.fondo) + '"><i style="background:' + esc(tm.v.tapa) + '"></i><em style="background:' + esc(tm.v.acento) + '"></em></span>' +
           '<b>' + esc(tm.nombre) + '</b><small>' + esc(tm.descripcion) + '</small></button>';
       }).join('') + '</div></div>' +
-      '<div class="tarjeta"><h3>Logos</h3><p class="ayuda" style="margin-bottom:12px">PNG con fondo transparente, 800 a 1000 px de ancho. Si no sube nada se usa el logo Sheraton.</p><div class="logos">' +
+      '<div class="tarjeta"><h3>Logos</h3><p class="ayuda" style="margin-bottom:12px">Elija de la <b>📚 Biblioteca</b> (Sheraton, Cook’s, Bakery & Deli, Las Fragatas, The Chef’s Table) o suba uno nuevo: PNG con fondo transparente, 800 a 1000 px de ancho. Al elegir de la biblioteca se ponen solas la versión clara y la oscura. Si no elige nada se usa el logo Sheraton.</p><div class="logos">' +
       logo('claro', 'Logo para fondos oscuros', 'versión blanca o clara', LOGO_CLARO, '#1b1916') +
       logo('oscuro', 'Logo para fondos claros', 'versión negra o a color', LOGO_OSCURO, '#f4efe8') +
       logo('secundario', 'Logo secundario en portada', 'opcional, ej. Bakery & Deli (claro)', '', '#1b1916') +
@@ -678,6 +679,7 @@
       case 'principal-catalogo': S.datos.principal = el.getAttribute('data-id'); cambio(true); return aviso('Será el catálogo de la dirección principal al publicar.', 'ok');
       case 'eliminar-catalogo': return eliminarCatalogo(el.getAttribute('data-id'));
       case 'elegir-tema': c.tema = el.getAttribute('data-tema'); return cambio(true);
+      case 'logo-biblioteca': return elegirLogo(el.getAttribute('data-logo'));
       case 'logo-quitar': delete S.pendientes[c.logos[el.getAttribute('data-logo')]]; c.logos[el.getAttribute('data-logo')] = ''; return cambio(true);
       case 'form-agregar': c.formularios = c.formularios || []; c.formularios.push({ id: 'f' + Date.now().toString(36), nombre: '', url: '' }); if (!c.formulario) c.formulario = c.formularios[0].id; return cambio(true);
       case 'form-eliminar':
@@ -717,6 +719,43 @@
       case 'usuario-contrasena': return cambiarContrasena();
       case 'token-reemplazar': return reemplazarToken();
     }
+  }
+
+  /* ═══════════════ Biblioteca de logos ═══════════════ */
+  function bibliotecaLogos() {
+    var lista = (window.LOGOS || []).slice(), conocidos = {};
+    lista.forEach(function (l) { conocidos[l.claro] = conocidos[l.oscuro] = 1; });
+    // Logos subidos en cualquier catálogo también quedan disponibles para los demás.
+    S.datos.catalogos.forEach(function (c) {
+      var L = c.logos || {};
+      [['claro', 'oscuro'], ['secundario', 'secundarioOscuro']].forEach(function (par) {
+        var a = L[par[0]], b = L[par[1]];
+        if ((a && !conocidos[a]) || (b && !conocidos[b])) {
+          lista.push({ nombre: 'Subido en «' + c.nombre + '»', claro: a || b, oscuro: b || a });
+          if (a) conocidos[a] = 1; if (b) conocidos[b] = 1;
+        }
+      });
+    });
+    return lista;
+  }
+  function elegirLogo(clave) {
+    var lista = bibliotecaLogos(), secundario = clave.indexOf('secundario') === 0;
+    return new Promise(function (resolver) {
+      var f = $('#dialogo-form'), d = $('#dialogo');
+      f.innerHTML = '<h3>Biblioteca de logos</h3><p class="ayuda" style="margin:0">Toque un logo. Se colocan su versión clara (para fondos oscuros) y su versión oscura (para fondos claros).</p>' +
+        '<div class="biblioteca">' + lista.map(function (l, i) {
+          return '<button type="submit" value="' + i + '" class="logo-opcion"><span style="background:#1b1916"><img src="' + esc(rutaImagen(l.claro)) + '" alt=""></span>' +
+            '<span style="background:#f4efe8"><img src="' + esc(rutaImagen(l.oscuro)) + '" alt=""></span><b>' + esc(l.nombre) + '</b></button>';
+        }).join('') + '</div><div class="fila fila-fin"><button value="no" class="btn btn-borde">Cancelar</button></div>';
+      d.onclose = function () { resolver(d.returnValue && d.returnValue !== 'no' ? lista[+d.returnValue] : null); };
+      d.returnValue = ''; d.showModal();
+    }).then(function (l) {
+      if (!l) return;
+      var c = Cat(); c.logos = c.logos || {};
+      if (secundario) { c.logos.secundario = l.claro; c.logos.secundarioOscuro = l.oscuro; }
+      else { c.logos.claro = l.claro; c.logos.oscuro = l.oscuro; }
+      cambio(true); aviso('Logo «' + l.nombre + '» colocado (versión clara y oscura). Recuerde publicar.', 'ok');
+    });
   }
 
   /* ═══════════════ Íconos ═══════════════ */

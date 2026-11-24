@@ -78,3 +78,12 @@ window.EFECTOS = [
   ['estrellas', '🌠 Estrellas fugaces · noches especiales'],
   ['burbujas', '🫧 Burbujas · spa, piscina, verano'],
 ];
+
+/* Biblioteca de logos del hotel. "claro" = versión para fondos oscuros · "oscuro" = para fondos claros. */
+window.LOGOS = [
+  { nombre: 'Sheraton Quito Hotel', claro: 'assets/logos/sheraton-blanco.png', oscuro: 'assets/logos/sheraton-negro.png' },
+  { nombre: "Cook's", claro: 'assets/logos/cooks-blanco.png', oscuro: 'assets/logos/cooks-negro.png' },
+  { nombre: 'Bakery & Deli by Cooks', claro: 'assets/logos/bakery-blanco.png', oscuro: 'assets/logos/bakery-gris.png' },
+  { nombre: 'Las Fragatas', claro: 'assets/logos/fragatas-blanco.png', oscuro: 'assets/logos/fragatas-negro.png' },
+  { nombre: "The Chef's Table", claro: 'assets/logos/chefs-table-blanco.png', oscuro: 'assets/logos/chefs-table-negro.png' },
+];

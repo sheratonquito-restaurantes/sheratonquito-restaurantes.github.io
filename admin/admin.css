@@ -147,3 +147,11 @@ input.invalido { border-color: #b3261e !important; background: #fff4f3; }
 .iconos-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(42px, 1fr)); gap: 4px; }
 .icono-opcion { font-size: 22px; height: 42px; border: 1px solid #e4ded3; border-radius: 8px; background: #fff; cursor: pointer; }
 .icono-opcion:hover { background: #fbf3e4; border-color: #c9a96e; }
+.biblioteca { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; max-height: 60vh; overflow: auto; }
+.logo-opcion { display: flex; flex-direction: column; gap: 0; padding: 0; border: 2px solid #e4ded3; border-radius: 10px; overflow: hidden; background: #fff; cursor: pointer; font: inherit; }
+.logo-opcion:hover { border-color: #c9a96e; }
+.logo-opcion span { height: 64px; display: flex; align-items: center; justify-content: center; padding: 8px; }
+.logo-opcion img { max-width: 100%; max-height: 100%; object-fit: contain; }
+.logo-opcion b { padding: 6px; font-size: 12px; }
+.biblioteca { grid-auto-rows: max-content; }
+.logo-opcion span { flex: 0 0 64px; }
