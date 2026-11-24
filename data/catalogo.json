@@ -4,8 +4,8 @@
   "formsUrl": "https://forms.cloud.microsoft/r/SjMkYFTQfn",
   "telefonos": [
     { "lugar": "Cook's y Bakery & Deli - Las Fragatas - The Chef's Table", "numero": "099 791 8319" },
-    { "lugar": "Coordinador de Reservas 1", "numero": "099 204 7975" },
-    { "lugar": "Coordinador de Reservas 2", "numero": "099 485 9771" }
+    { "lugar": "Coordinador de Eventos 1", "numero": "099 204 7975" },
+    { "lugar": "Coordinador de Eventos 2", "numero": "099 485 9771" }
   ],
   "aviso": {
     "titulo": "Protección de datos personales",
@@ -17,7 +17,7 @@
     "sobretitulo": "Todo el año",
     "titulo": "Nuestros menús",
     "items": [
-      { "nombre": "Menú Ejecutivo", "detalle": "De lunes a viernes", "precio": "$13", "vinculo": "" },
+      { "nombre": "Menú Ejecutivo", "detalle": "De lunes a domingo", "precio": "$13", "vinculo": "" },
       { "nombre": "Sugerencia del Chef", "detalle": "Creación de temporada", "precio": "$26", "vinculo": "" },
       { "nombre": "Brunch Ecuatoriano", "detalle": "Fines de semana", "precio": "$28", "vinculo": "" }
     ],

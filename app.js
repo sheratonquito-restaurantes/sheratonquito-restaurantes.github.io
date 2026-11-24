@@ -382,7 +382,6 @@
   /* ════════════ Formulario de reserva ════════════ */
   function abrirReserva(vinculo, titulo) {
     var u = (vinculo && /^https:\/\/forms\.(cloud\.microsoft|office\.com)\//.test(vinculo)) ? vinculo : (D && D.formsUrl) || 'https://forms.cloud.microsoft/r/SjMkYFTQfn';
-    $('#reserva-titulo').textContent = titulo || 'Reservar';
     $('#reserva-forms').src = u + (u.indexOf('?') >= 0 ? '&' : '?') + 'embed=true';
     $('#reserva-externa').href = u;
     $('#modal-reserva').hidden = false;
