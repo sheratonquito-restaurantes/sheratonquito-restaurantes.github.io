@@ -1,0 +1,18 @@
+{
+  "version": 1,
+  "iteraciones": 600000,
+  "token": {
+    "iv": "NrllzTMNWEnQBLFy",
+    "datos": "oEKJCttOZ1GMSqtM8Gd6lLLCAwWpYYHv/VF5E2wgmtFwTHGcdeLGX4DluvSC60iPVPcjWpDqaDtZMCTWD2kauHslJY/Mruf6rV50rvqv7SY9eFyeSgBpy/pvZLwxaiQs2rHC8w+NQOQeHI6aVw=="
+  },
+  "usuarios": [
+    {
+      "usuario": "itsystem",
+      "sal": "ObGmXSvwZTscnR7oqvlomw==",
+      "iv": "C+MKntPNKH3pfGQT",
+      "llave": "6YaJ6FUmyrTuTd7EPefst9/P4fIGfdm0rjQsuPPa3Zj+es9kSafpIu5tSol29k6e",
+      "creado": "2026-11-24T00:45:56.207Z"
+    }
+  ],
+  "actualizado": "2026-11-24T00:45:56.207Z"
+}
