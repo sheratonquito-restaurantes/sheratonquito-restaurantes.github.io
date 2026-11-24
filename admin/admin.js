@@ -412,15 +412,17 @@
     '</div></div>';
 
   function vistaCatalogos() {
-    return '<h2>Catálogos</h2><p class="ayuda">Cree un catálogo por área (A&B, Recepción, Eventos, Grupos, Mercadeo…). Cada uno tiene su propio <b>enlace</b>, <b>tema de color</b>, <b>logos</b>, <b>formularios</b> y <b>temporadas</b>. El catálogo <b>principal</b> se abre en la dirección raíz.</p>' +
+    return '<h2>Catálogos</h2><p class="ayuda">Cree un catálogo por área (A&B, Recepción, Eventos, Grupos, Mercadeo…). Cada uno tiene su propio <b>enlace</b>, <b>tema de color</b>, <b>logos</b>, <b>formularios</b> y <b>temporadas</b>. <b>Todos los catálogos funcionan al mismo tiempo</b>, cada uno en su enlace; el <b>principal</b> además se abre en la dirección raíz. Cuando un catálogo esté listo y publicado, cree su <b>enlace corto</b> para compartirlo por WhatsApp.</p>' +
       S.datos.catalogos.map(function (c) {
         var principal = c.id === S.datos.principal, edit = c.id === S.catalogo, tema = TEMAS[c.tema] || {};
         var activa = c.temporadas.filter(function (t) { return t.id === c.activa; })[0];
         return '<div class="tarjeta temporada"><div class="muestra-tema" style="background:' + esc((tema.v || {}).fondo || '#222') + '"><span style="background:' + esc((tema.v || {}).acento || '#c9a96e') + '"></span></div>' +
           '<div class="info"><b>' + esc(c.nombre) + '</b> ' + (principal ? '<span class="chip activa">★ Principal</span>' : '') + (edit ? ' <span class="chip">Editando</span>' : '') +
           '<p>' + esc(tema.nombre || c.tema) + ' · ' + c.temporadas.length + ' temporada(s) · visible: ' + esc(activa ? activa.nombre : '—') + '</p>' +
-          '<p><a href="' + esc(enlacePublico(c)) + '" target="_blank" rel="noopener">' + esc(enlacePublico(c)) + '</a></p></div>' +
+          '<p>🌐 <a href="' + esc(enlacePublico(c)) + '" target="_blank" rel="noopener">' + esc(enlacePublico(c)) + '</a></p>' +
+          (c.enlaceCorto ? '<p>🔗 Enlace corto: <a href="' + esc(c.enlaceCorto) + '" target="_blank" rel="noopener"><b>' + esc(c.enlaceCorto) + '</b></a> <button class="btn-icono" title="Copiar" data-accion="copiar" data-texto="' + esc(c.enlaceCorto) + '">📋</button></p>' : '') + '</div>' +
           '<div class="fila">' + (edit ? '' : '<button class="btn btn-borde btn-chico" data-accion="editar-catalogo" data-id="' + esc(c.id) + '">✏️ Editar</button>') +
+          '<button class="btn btn-dorado btn-chico" data-accion="enlace-corto" data-id="' + esc(c.id) + '">🔗 ' + (c.enlaceCorto ? 'Cambiar enlace corto' : 'Crear enlace corto') + '</button>' +
           '<button class="btn btn-borde btn-chico" data-accion="duplicar-catalogo" data-id="' + esc(c.id) + '">⧉ Duplicar</button>' +
           (principal ? '' : '<button class="btn btn-borde btn-chico" data-accion="principal-catalogo" data-id="' + esc(c.id) + '">★ Hacer principal</button>') +
           (principal ? '' : '<button class="btn btn-peligro btn-chico" data-accion="eliminar-catalogo" data-id="' + esc(c.id) + '">Eliminar</button>') +
@@ -457,7 +459,7 @@
       (t.secciones || []).map(function (s, si) {
         return '<div class="tarjeta" data-sec="' + si + '">' +
           '<div class="seccion-cab">' +
-          '<label class="campo">Ícono<input type="text" data-campo="sec.icono" value="' + esc(s.icono) + '" maxlength="4"></label>' +
+          '<label class="campo">Ícono<span class="icono-elegir"><input type="text" data-campo="sec.icono" value="' + esc(s.icono) + '" maxlength="8"><button type="button" class="btn btn-borde btn-chico" data-accion="icono-elegir">Elegir…</button></span></label>' +
           '<label class="campo">Nombre de la sección<input type="text" data-campo="sec.nombre" value="' + esc(s.nombre) + '"></label>' +
           '<label class="campo">Descripción (índice)<input type="text" data-campo="sec.descripcion" value="' + esc(s.descripcion) + '"></label>' +
           '<label class="campo">Efecto<select data-campo="sec.efecto">' + opciones(EFECTOS, s.efecto || 'ninguno') + '</select></label>' +
@@ -670,6 +672,9 @@
       case 'editar-catalogo': S.catalogo = el.getAttribute('data-id'); S.temporada = Cat().activa; S.pestana = 'paginas'; return pintarTodo();
       case 'nuevo-catalogo': return nuevoCatalogo();
       case 'duplicar-catalogo': return duplicarCatalogo(el.getAttribute('data-id'));
+      case 'icono-elegir': return elegirIcono().then(function (ic) { if (ic) { t.secciones[si].icono = ic; cambio(true); } });
+      case 'enlace-corto': return crearEnlaceCorto(el.getAttribute('data-id'));
+      case 'copiar': return copiarTexto(el.getAttribute('data-texto'));
       case 'principal-catalogo': S.datos.principal = el.getAttribute('data-id'); cambio(true); return aviso('Será el catálogo de la dirección principal al publicar.', 'ok');
       case 'eliminar-catalogo': return eliminarCatalogo(el.getAttribute('data-id'));
       case 'elegir-tema': c.tema = el.getAttribute('data-tema'); return cambio(true);
@@ -712,6 +717,57 @@
       case 'usuario-contrasena': return cambiarContrasena();
       case 'token-reemplazar': return reemplazarToken();
     }
+  }
+
+  /* ═══════════════ Íconos ═══════════════ */
+  var ICONOS = [
+    ['Fiestas y temporadas', '🎄 🎅 🤶 ⛄ ❄️ 🎁 🔔 🕯️ ⭐ 🌟 ✨ 🎆 🎇 🥂 🍾 🎉 🎊 🎈 🎭 🪅 🎃 👻 🐣 🐰 💝 💐 💕 ❤️ 👩‍👧'],
+    ['Comida', '🍽️ 🥘 🍲 🍝 🥩 🍗 🦃 🍖 🐟 🦐 🦞 🍣 🥗 🥪 🌮 🍕 🍔 🍟 🥐 🥖 🍞 🥯 🧀 🥚 🍳 🥞 🧇 🥓'],
+    ['Postres y panadería', '🍰 🎂 🧁 🥧 🍮 🍩 🍪 🍫 🍬 🍭 🍦 🍨 🥮 🍯 🍓 🍒 🍎 🍊 🍇'],
+    ['Bebidas', '☕ 🍵 🧋 🥤 🧃 🥛 🍷 🍸 🍹 🍺 🍻 🥃 🧉 🍶'],
+    ['Eventos y grupos', '💍 💒 🎓 🏆 🎤 🎵 🎶 🎻 🎷 🎹 💃 🕺 📸 🎬 🎟️ 🎫 🗓️ 📅 👥 🤝 💼 🏢 📊 🖥️ 🎯'],
+    ['Hotel y recepción', '🏨 🛎️ 🛏️ 🔑 🧳 🛁 🧖 💆 🏊 🏋️ 🚗 🚕 ✈️ 🗺️ 📍 🌎 ℹ️ 📞 💬 📧 🅿️ 🛍️ 🎀'],
+    ['Naturaleza', '🌸 🌺 🌻 🌹 🌷 🌿 🍀 🍁 🍂 🌳 🌴 🌵 ☀️ 🌙 🌈 ⛰️ 🌋 🌊 🦋 🐦'],
+    ['Otros', '💎 👑 🏷️ 💲 💳 🎖️ ✅ 🔥 💡 📌 📣 🆕 🔝 ♥️ 🌐'],
+  ];
+  function elegirIcono() {
+    return new Promise(function (resolver) {
+      var f = $('#dialogo-form'), d = $('#dialogo');
+      f.innerHTML = '<h3>Elija un ícono</h3><p class="ayuda" style="margin:0">Toque un ícono. También puede escribir o pegar cualquier emoji directamente en la casilla «Ícono».</p>' +
+        '<div class="iconos">' + ICONOS.map(function (g) {
+          return '<p class="iconos-grupo">' + esc(g[0]) + '</p><div class="iconos-rejilla">' +
+            g[1].split(' ').map(function (ic) { return '<button type="submit" value="' + esc(ic) + '" class="icono-opcion">' + esc(ic) + '</button>'; }).join('') + '</div>';
+        }).join('') + '</div><div class="fila fila-fin"><button value="no" class="btn btn-borde">Cancelar</button></div>';
+      d.onclose = function () { resolver(d.returnValue && d.returnValue !== 'no' ? d.returnValue : null); };
+      d.returnValue = ''; d.showModal();
+    });
+  }
+
+  /* ═══════════════ Enlace corto (is.gd) ═══════════════ */
+  function copiarTexto(t) {
+    (navigator.clipboard ? navigator.clipboard.writeText(t) : Promise.reject()).then(function () { aviso('Copiado: ' + t, 'ok'); }, function () { aviso('No se pudo copiar; selecciónelo y copie con Ctrl+C.', 'error'); });
+  }
+  function crearEnlaceCorto(id) {
+    var c = S.datos.catalogos.filter(function (x) { return x.id === id; })[0];
+    var destino = 'https://' + REPO.nombre + '/' + (c.id === S.datos.principal ? '' : c.id + '/');
+    var sugerido = 'SheratonQuito' + c.nombre.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, ' ').trim().split(' ').map(function (w) { return w.charAt(0).toUpperCase() + w.slice(1); }).join('');
+    return dialogo('Crear enlace corto', (hayCambios() ? '<b>⚠ Primero pulse «Publicar»</b> para que el catálogo exista en internet.<br><br>' : '') +
+      'Se abrirá una pestaña de <b>is.gd</b> que crea el enlace corto hacia:<br><b>' + esc(destino) + '</b>', [
+      { id: 'nombre', etiqueta: 'Nombre del enlace (sin espacios ni tildes)', valor: (c.enlaceCorto || '').replace('https://is.gd/', '') || sugerido.slice(0, 30), ayuda: 'quedará is.gd/Nombre' },
+    ], 'Abrir is.gd').then(function (v) {
+      if (!v) return;
+      var nombre = v.nombre.replace(/[^A-Za-z0-9_]/g, '');
+      if (nombre.length < 5 || nombre.length > 30) return aviso('El nombre debe tener de 5 a 30 letras o números.', 'error');
+      window.open('https://is.gd/create.php?format=simple&url=' + encodeURIComponent(destino) + '&shorturl=' + encodeURIComponent(nombre), '_blank', 'noopener');
+      return dialogo('Guardar enlace corto', 'En la pestaña de is.gd debe aparecer <b>https://is.gd/' + esc(nombre) + '</b>. Si apareció, pulse «Guardar».<br>Si salió un mensaje de error (nombre ocupado), pulse «Cancelar» y pruebe con otro nombre.', [
+        { id: 'enlace', etiqueta: 'Enlace corto', valor: 'https://is.gd/' + nombre },
+      ], 'Guardar').then(function (r) {
+        if (!r) return;
+        if (!/^https:\/\/is\.gd\/[A-Za-z0-9_]{5,30}$/.test(r.enlace)) return aviso('El enlace debe ser https://is.gd/Nombre', 'error');
+        c.enlaceCorto = r.enlace; cambio(true);
+        aviso('Enlace corto guardado. Pulse «Publicar» para conservarlo.', 'ok');
+      });
+    });
   }
 
   /* ═══════════════ Catálogos ═══════════════ */
@@ -869,7 +925,7 @@
       var b = $('#boton-publicar'); b.disabled = true; b.textContent = 'Publicando…';
       S.datos.actualizado = new Date().toISOString(); S.datos.actualizadoPor = S.usuario;
       var archivos = imagenes.map(function (r) { return { ruta: r, base64: S.pendientes[r].base64 }; });
-      S.datos.catalogos.forEach(function (c) { if (c.id !== S.datos.principal) archivos.push({ ruta: c.id + '/index.html', base64: textoAB64(paginaRedireccion(c)) }); });
+      S.datos.catalogos.forEach(function (c) { archivos.push({ ruta: c.id + '/index.html', base64: textoAB64(paginaRedireccion(c)) }); });
       archivos.push({ ruta: RUTA_DATOS, base64: textoAB64(JSON.stringify(S.datos, null, 2)) });
       var borrar = (S.eliminados || []).map(function (id) { return id + '/index.html'; });
       return publicarArchivos(archivos, borrar, 'Panel: actualización de catálogos por ' + S.usuario).then(function () {
