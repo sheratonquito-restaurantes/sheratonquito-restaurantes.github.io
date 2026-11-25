@@ -9,7 +9,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' https://api.github.com https://raw.githubusercontent.com; object-src 'none'; base-uri 'self'; form-action 'none'; upgrade-insecure-requests">
   <meta name="referrer" content="no-referrer">
   <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;1,400&family=Montserrat:wght@300;400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="admin.css?v=9">
+  <link rel="stylesheet" href="admin.css?v=13">
 </head>
 <body>
   <!-- Acceso: inicio de sesión o configuración inicial -->
@@ -37,6 +37,8 @@
       <span id="estado-temporada" class="chip"></span>
       <div class="cabecera-acciones">
         <button class="btn btn-claro" data-accion="vista-previa">👁 Vista previa</button>
+        <span id="estado-guardado" class="chip"></span>
+        <button class="btn btn-claro" data-accion="guardar" id="boton-guardar">💾 Guardar</button>
         <button class="btn btn-dorado" data-accion="publicar" id="boton-publicar">🚀 Publicar</button>
         <button class="btn btn-claro" data-accion="salir">Salir</button>
       </div>
@@ -57,6 +59,6 @@
 
   <script src="../vendor/qrcode.js?v=5"></script>
   <script src="../temas.js?v=7"></script>
-  <script src="admin.js?v=12"></script>
+  <script src="admin.js?v=13"></script>
 </body>
 </html>

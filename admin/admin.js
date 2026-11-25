@@ -15,6 +15,7 @@
 
   var REPO = { dueno: 'sheratonquito-restaurantes', nombre: 'sheratonquito-restaurantes.github.io', rama: 'main' };
   var RUTA_DATOS = 'data/catalogo.json';
+  var RUTA_BORRADOR = 'data/borrador.json'; // cambios guardados sin publicar (no lo usa el catálogo público)
   var RUTA_ACCESO = 'data/acceso.json';
   var ITERACIONES = 600000;
   var DEMO = /^(localhost|127\.0\.0\.1)$/.test(location.hostname) && new URLSearchParams(location.search).get('demo') === '1';
@@ -120,15 +121,21 @@
       if (guardado) return Promise.resolve({ content: textoAB64(guardado) });
       return fetch('../' + RUTA_DATOS, { cache: 'no-store' }).then(function (r) { return r.text(); }).then(function (t) { return { content: textoAB64(t) }; });
     }
+    if (/\/contents\/data\/borrador\.json/.test(ruta)) {
+      var bor = localStorage.getItem('demo-borrador');
+      if (bor) return Promise.resolve({ content: textoAB64(bor) });
+    }
     if (/\/contents\//.test(ruta)) { var e = new Error('No encontrado'); e.status = 404; return Promise.reject(e); }
     if (metodo === 'GET' && ruta === base) return Promise.resolve({ permissions: { push: true }, full_name: 'demo' });
     return Promise.resolve({});
   }
-  function demoPublicar(archivos) {
+  function demoPublicar(archivos, borrar) {
     archivos.forEach(function (a) {
       if (a.ruta === RUTA_DATOS) localStorage.setItem('demo-catalogo', b64ATexto(a.base64));
       if (a.ruta === RUTA_ACCESO) localStorage.setItem('demo-acceso', b64ATexto(a.base64));
+      if (a.ruta === RUTA_BORRADOR) localStorage.setItem('demo-borrador', b64ATexto(a.base64));
     });
+    if ((borrar || []).indexOf(RUTA_BORRADOR) >= 0) localStorage.removeItem('demo-borrador');
     return new Promise(function (r) { setTimeout(r, 400); });
   }
 
@@ -139,7 +146,7 @@
     clearTimeout(tAviso); tAviso = setTimeout(function () { a.hidden = true; }, tipo === 'error' ? 7000 : 3500);
   }
   // Diálogo simple: campos [{id, etiqueta, tipo, valor, ayuda, opciones}] → Promise(valores | null)
-  function dialogo(titulo, texto, campos, botonOk, peligro) {
+  function dialogo(titulo, texto, campos, botonOk, peligro, botonExtra) {
     return new Promise(function (resolver) {
       var f = $('#dialogo-form');
       f.innerHTML = '<h3>' + esc(titulo) + '</h3>' + (texto ? '<p class="ayuda" style="margin:0">' + texto + '</p>' : '') +
@@ -149,9 +156,10 @@
             : '<input name="' + c.id + '" type="' + (c.tipo || 'text') + '" value="' + esc(c.valor || '') + '" autocomplete="' + (c.tipo === 'password' ? 'new-password' : 'off') + '">';
           return '<label class="campo">' + esc(c.etiqueta) + (c.ayuda ? ' <small>' + esc(c.ayuda) + '</small>' : '') + control + '</label>';
         }).join('') +
-        '<div class="fila fila-fin"><button value="no" class="btn btn-borde">Cancelar</button><button value="si" class="btn ' + (peligro ? 'btn-peligro' : 'btn-negro') + '">' + esc(botonOk || 'Aceptar') + '</button></div>';
+        '<div class="fila fila-fin"><button value="no" class="btn btn-borde">Cancelar</button>' + (botonExtra ? '<button value="extra" class="btn btn-borde">' + esc(botonExtra) + '</button>' : '') + '<button value="si" class="btn ' + (peligro ? 'btn-peligro' : 'btn-negro') + '">' + esc(botonOk || 'Aceptar') + '</button></div>';
       var d = $('#dialogo');
       d.onclose = function () {
+        if (d.returnValue === 'extra') return resolver({ __extra: true });
         if (d.returnValue !== 'si') return resolver(null);
         var v = {}; (campos || []).forEach(function (c) { v[c.id] = f.elements[c.id].value.trim(); });
         resolver(v);
@@ -296,13 +304,23 @@
       S.datos = migrar(crudo);
       S.original = JSON.stringify(crudo.version >= 2 ? S.datos : crudo); // si se migró, cuenta como cambio por publicar
       S.catalogo = S.datos.principal; S.temporada = Cat().activa;
-      S.pendientes = {};
+      S.pendientes = {}; S.cache = {};
+      return leerArchivo(RUTA_BORRADOR).then(function (t) { return JSON.parse(t); }, function () { return null; });
+    }).then(function (nube) {
+      if (nube && nube.datos) {
+        S.datos = migrar(nube.datos);
+        S.catalogo = nube.catalogo || S.datos.principal; S.temporada = nube.temporada || Cat().activa;
+        S.borradorNube = nube;
+      }
+      S.guardado = JSON.stringify(S.datos);
       var b = leerBorradorLocal();
+      if (b && nube && b.fecha <= nube.fecha) b = null; // lo local es más antiguo que lo guardado
       $('#pantalla-acceso').hidden = true; $('#app').hidden = false;
       $('#usuario-actual').textContent = 'Usuario: ' + S.usuario + (DEMO ? ' · modo de prueba' : '');
       pintarTodo();
+      if (S.borradorNube) aviso('Se abrió el borrador guardado por ' + (S.borradorNube.usuario || '—') + ' el ' + new Date(S.borradorNube.fecha).toLocaleString('es-EC') + ' — siga editando y pulse «Publicar» cuando esté listo.', 'ok');
       if (b && b.usuario === S.usuario && b.datos && JSON.stringify(b.datos) !== JSON.stringify(S.datos)) {
-        dialogo('Hay cambios sin publicar', 'Se encontró un borrador guardado en este equipo el ' + esc(new Date(b.fecha).toLocaleString('es-EC')) + '. ¿Desea recuperarlo?', [], 'Recuperar').then(function (v) {
+        dialogo('Hay cambios sin guardar', 'Se encontraron cambios de este equipo del ' + esc(new Date(b.fecha).toLocaleString('es-EC')) + ' que no se alcanzaron a guardar. ¿Desea recuperarlos?', [], 'Recuperar').then(function (v) {
           if (v) { S.datos = migrar(b.datos); S.pendientes = b.pendientes || {}; S.catalogo = b.catalogo || S.datos.principal; S.temporada = b.temporada || Cat().activa; pintarTodo(); aviso('Borrador recuperado.'); }
           else borrarBorradorLocal();
         });
@@ -313,6 +331,7 @@
   function Cat() { var l = S.datos.catalogos; return l.filter(function (c) { return c.id === S.catalogo; })[0] || l[0]; }
   function T() { var c = Cat(); return (c.temporadas || []).filter(function (t) { return t.id === S.temporada; })[0] || c.temporadas[0]; }
   function hayCambios() { return JSON.stringify(S.datos) !== S.original || Object.keys(S.pendientes).length > 0; }
+  function sinGuardar() { return JSON.stringify(S.datos) !== S.guardado || Object.keys(S.pendientes).length > 0; }
 
   function guardarBorradorLocal() {
     var base = { usuario: S.usuario, fecha: Date.now(), datos: S.datos, catalogo: S.catalogo, temporada: S.temporada };
@@ -328,7 +347,7 @@
     actualizarCabecera();
     if (repintar) pintarContenido();
   }
-  function rutaImagen(ruta) { return S.pendientes[ruta] ? S.pendientes[ruta].dataUrl : '../' + ruta; }
+  function rutaImagen(ruta) { return S.pendientes[ruta] ? S.pendientes[ruta].dataUrl : (S.cache && S.cache[ruta]) || '../' + ruta; }
   function enlacePublico(c) {
     var raiz = DEMO ? location.origin + '/' : 'https://' + REPO.nombre + '/';
     return c.id === S.datos.principal ? raiz : raiz + c.id + '/';
@@ -397,7 +416,12 @@
     chip.textContent = activa ? '● Visible al público' : 'No visible (borrador)';
     chip.className = 'chip' + (activa ? ' activa' : '');
     var n = Object.keys(S.pendientes).length;
-    $('#boton-publicar').innerHTML = '🚀 Publicar' + (hayCambios() ? ' <span class="contador-cambios">' + (n ? n + ' img' : '•') + '</span>' : '');
+    $('#boton-publicar').innerHTML = '🚀 Publicar' + (hayCambios() ? ' <span class="contador-cambios">•</span>' : '');
+    var g = $('#boton-guardar'), ng = sinGuardar();
+    if (!g.disabled) g.innerHTML = '💾 Guardar' + (ng ? ' <span class="contador-cambios">' + (n ? n + ' img' : '•') + '</span>' : '');
+    var est = $('#estado-guardado');
+    est.textContent = ng ? '● Cambios sin guardar' : (S.horaGuardado ? '✓ Guardado ' + S.horaGuardado : (hayCambios() ? '✓ Guardado (sin publicar)' : '✓ Todo publicado'));
+    est.className = 'chip ' + (ng ? 'pendiente' : 'activa');
     $$('#pestanas button').forEach(function (x) { x.classList.toggle('activa', x.getAttribute('data-pestana') === S.pestana); });
   }
   function pintarContenido() {
@@ -411,17 +435,21 @@
       : '<input type="' + (opt.tipo || 'text') + '" data-campo="' + ruta + '" value="' + esc(valor) + '"' + (opt.ph ? ' placeholder="' + esc(opt.ph) + '"' : '') + '>';
     return '<label class="campo">' + esc(etiqueta) + (opt.ayuda ? ' <small>' + esc(opt.ayuda) + '</small>' : '') + control + '</label>';
   }
+  function nombreFormulario(id) {
+    var f = (Cat().formularios || []).filter(function (x) { return x.id === id; })[0] || (Cat().formularios || [])[0];
+    return f ? (f.nombre || 'formulario sin nombre') : 'sin formulario';
+  }
   function opcionesFormulario(valor, textoVacio) {
     return '<option value="">' + esc(textoVacio) + '</option>' + (Cat().formularios || []).map(function (f) {
       return '<option value="' + esc(f.id) + '"' + (f.id === valor ? ' selected' : '') + '>' + esc(f.nombre || f.url) + '</option>';
     }).join('');
   }
-  var MEDIDAS = '<div class="tarjeta medidas"><h3>📐 Medidas recomendadas</h3><div class="rejilla">' +
+  var MEDIDAS = '<details class="tarjeta medidas"><summary>📐 Medidas recomendadas <small>(clic para ver)</small></summary><div class="rejilla">' +
     '<div><b>Páginas del catálogo</b><p>Vertical <b>4:5</b> · ideal <b>1080 × 1350 px</b> (o 1400 × 1750). JPG, PNG o WEBP hasta 15 MB. Se ajustan solas a 880 × 1100; si no son 4:5 se agregan bordes.</p></div>' +
     '<div><b>GIF animados</b><p>Vertical 4:5, <b>máximo 5 MB</b> (ideal menos de 2 MB para que cargue rápido en celular). Se suben sin cambios para conservar la animación.</p></div>' +
     '<div><b>Logos</b><p><b>PNG con fondo transparente</b>, de 800 a 1000 px de ancho. Suba una versión <b>blanca</b> (para fondos oscuros) y otra <b>negra o a color</b> (para fondos claros).</p></div>' +
     '<div><b>Textos dentro de las imágenes</b><p>Deje un margen de 60 px alrededor y use letra grande: en el celular la página se ve de unos 360 px de ancho.</p></div>' +
-    '</div></div>';
+    '</div></details>';
 
   function vistaCatalogos() {
     return '<h2>Catálogos</h2><p class="ayuda">Cree un catálogo por área (A&B, Recepción, Eventos, Grupos, Mercadeo…). Cada uno tiene su propio <b>enlace</b>, <b>tema de color</b>, <b>logos</b>, <b>formularios</b> y <b>temporadas</b>. <b>Todos los catálogos funcionan al mismo tiempo</b>, cada uno en su enlace; el <b>principal</b> además se abre en la dirección raíz. Cuando un catálogo esté listo y publicado, cree su <b>enlace corto</b> para compartirlo por WhatsApp.</p>' +
@@ -489,8 +517,10 @@
               '<label class="campo">Descripción <small>(precio, nombre)</small><textarea data-campo="pag.descripcion" rows="2">' + esc(p.descripcion) + '</textarea></label>' +
               '<label class="check"><input type="checkbox" data-campo="pag.reservar"' + (p.reservar ? ' checked' : '') + '> Botón Reservar</label>' +
               (p.reservar ? (
-                '<label class="campo">Formulario<select data-campo="pag.formulario">' + opcionesFormulario(p.formulario, 'El de la sección') + '</select></label>' +
-                '<label class="campo">Vínculo prellenado <small>(opcional)</small><input type="url" data-campo="pag.vinculo" value="' + esc(p.vinculo) + '" placeholder="https://forms.cloud.microsoft/…"></label>' +
+                '<label class="check"><input type="checkbox" data-campo="pag.mismoForm"' + (!p.formulario && !p.vinculo ? ' checked' : '') + '> Usar el formulario de la sección <small>(' + esc(nombreFormulario(s.formulario || Cat().formulario)) + ')</small></label>' +
+                (p.formulario || p.vinculo ? (
+                  '<label class="campo">Otro formulario para esta página<select data-campo="pag.formulario">' + opcionesFormulario(p.formulario, 'El de la sección') + '</select></label>' +
+                  '<label class="campo">Vínculo prellenado <small>(opcional, tiene prioridad)</small><input type="url" data-campo="pag.vinculo" value="' + esc(p.vinculo) + '" placeholder="https://forms.cloud.microsoft/…"></label>') : '') +
                 '<label class="campo">Texto del botón <small>(opcional)</small><input type="text" data-campo="pag.boton" value="' + esc(p.boton) + '" placeholder="📅 Reservar este"></label>') : '') +
               '</div>';
           }).join('') +
@@ -533,6 +563,22 @@
       '</div></div>';
   }
 
+  function parLogo(kClaro, kOscuro, titulo, ayuda, defClaro, defOscuro) {
+    var c = Cat(), L = c.logos || {}, tema = TEMAS[c.tema] || {};
+    var temaClaro = tema.logo === 'oscuro';
+    var vista = function (k, def, fondo, etiqueta, enUso) {
+      var ruta = L[k] || def;
+      return '<div class="logo-version"><div class="logo-vista" style="background:' + fondo + '">' + (ruta ? '<img src="' + esc(rutaImagen(ruta)) + '" alt="">' : '<span>Sin logo</span>') + '</div>' +
+        '<small><b>' + etiqueta + '</b>' + (enUso ? ' · <span class="en-uso">en la barra con el tema actual</span>' : '') + '</small>' +
+        '<label class="btn btn-borde btn-chico">Subir esta versión<input type="file" accept="image/png,image/webp" data-accion="logo-subir" data-logo="' + k + '" hidden></label></div>';
+    };
+    var puesto = L[kClaro] || L[kOscuro];
+    return '<div class="par-logo"><div class="par-cab"><b>' + esc(titulo) + '</b><small>' + esc(ayuda) + '</small></div>' +
+      '<div class="par-versiones">' + vista(kClaro, defClaro, '#1b1916', 'Versión clara · fondos oscuros', !temaClaro) + vista(kOscuro, defOscuro, '#f4efe8', 'Versión oscura · fondos claros', temaClaro) + '</div>' +
+      '<div class="fila"><button class="btn btn-dorado btn-chico" data-accion="logo-biblioteca" data-logo="' + kClaro + '">📚 Elegir de la biblioteca</button>' +
+      (puesto ? '<button class="btn btn-peligro btn-chico" data-accion="logo-quitar-par" data-claro="' + kClaro + '" data-oscuro="' + kOscuro + '">' + (defClaro ? 'Volver al de Sheraton' : 'Quitar') + '</button>' : '') + '</div></div>';
+  }
+
   function vistaDiseno() {
     var c = Cat(), M = c.menus || {}, L = c.logos || {};
     var logo = function (clave, titulo, ayuda, defecto, fondo) {
@@ -553,11 +599,9 @@
           '<span class="tema-muestra" style="background:' + esc(tm.v.fondo) + '"><i style="background:' + esc(tm.v.tapa) + '"></i><em style="background:' + esc(tm.v.acento) + '"></em></span>' +
           '<b>' + esc(tm.nombre) + '</b><small>' + esc(tm.descripcion) + '</small></button>';
       }).join('') + '</div></div>' +
-      '<div class="tarjeta"><h3>Logos</h3><p class="ayuda" style="margin-bottom:12px">Elija de la <b>📚 Biblioteca</b> (Sheraton, Cook’s, Bakery & Deli, Las Fragatas, The Chef’s Table) o suba uno nuevo: PNG con fondo transparente, 800 a 1000 px de ancho. Al elegir de la biblioteca se ponen solas la versión clara y la oscura. Si no elige nada se usa el logo Sheraton.</p><div class="logos">' +
-      logo('claro', 'Logo para fondos oscuros', 'versión blanca o clara', LOGO_CLARO, '#1b1916') +
-      logo('oscuro', 'Logo para fondos claros', 'versión negra o a color', LOGO_OSCURO, '#f4efe8') +
-      logo('secundario', 'Logo secundario en portada', 'opcional, ej. Bakery & Deli (claro)', '', '#1b1916') +
-      logo('secundarioOscuro', 'Logo secundario sobre papel', 'opcional, versión oscura', '', '#f4efe8') +
+      '<div class="tarjeta"><h3>Logos</h3><p class="ayuda" style="margin-bottom:12px">Cada logo tiene <b>dos versiones y se usan las dos</b>: el catálogo pone sola la <b>clara</b> sobre fondos oscuros y la <b>oscura</b> sobre fondos claros (bienvenida, páginas de papel y temas claros). Al elegir de la <b>📚 Biblioteca</b> se colocan ambas. También puede subir cada versión por separado (PNG transparente, 800 a 1000 px de ancho).</p><div class="pares-logo">' +
+      parLogo('claro', 'oscuro', 'Logo principal', 'Bienvenida, barra superior y portada. Si no elige, se usa Sheraton.', LOGO_CLARO, LOGO_OSCURO) +
+      parLogo('secundario', 'secundarioOscuro', 'Logo secundario (opcional)', 'Junto al del hotel en la portada y en la página de contacto. Ej.: Bakery & Deli.', '', '') +
       '</div></div>' +
       vistaFavicon(c) +
       '<div class="tarjeta lista-editable"><h3>Formularios de Microsoft Forms</h3><p class="ayuda" style="margin-bottom:6px">Agregue todos los formularios que use este catálogo (reservas, eventos, grupos, cotizaciones…). Luego elija cuál abre cada sección o página.</p>' +
@@ -637,7 +681,11 @@
     } else if (ambito === 'pag') {
       var s = t.secciones[+el.closest('[data-sec]').getAttribute('data-sec')];
       var pg = s.paginas[+el.closest('[data-pag]').getAttribute('data-pag')];
-      pg[clave] = valor;
+      if (clave === 'mismoForm') {
+        if (valor) { delete pg.formulario; pg.vinculo = ''; }
+        else pg.formulario = (c.formularios || []).filter(function (f) { return f.id !== (s.formulario || c.formulario); }).concat(c.formularios || [])[0].id;
+        repintar = true;
+      } else pg[clave] = valor;
       if (clave === 'reservar') repintar = true;
     } else if (ambito === 'menu') {
       c.menus.items[+el.closest('[data-menu]').getAttribute('data-menu')][clave] = valor;
@@ -706,6 +754,7 @@
     switch (acc) {
       case 'vista-previa': return vistaPrevia();
       case 'publicar': return publicar();
+      case 'guardar': return guardarBorrador();
       case 'salir': return salir();
       case 'editar-catalogo': S.catalogo = el.getAttribute('data-id'); S.temporada = Cat().activa; S.pestana = 'paginas'; return pintarTodo();
       case 'nuevo-catalogo': return nuevoCatalogo();
@@ -720,6 +769,9 @@
       case 'favicon-quitar':
         if (el.getAttribute('data-ambito') === 'general') { delete S.pendientes[S.datos.favicon]; S.datos.favicon = ''; }
         else { delete S.pendientes[c.favicon]; c.favicon = ''; }
+        return cambio(true);
+      case 'logo-quitar-par':
+        [el.getAttribute('data-claro'), el.getAttribute('data-oscuro')].forEach(function (k) { delete S.pendientes[c.logos[k]]; c.logos[k] = ''; });
         return cambio(true);
       case 'logo-biblioteca': return elegirLogo(el.getAttribute('data-logo'));
       case 'logo-quitar': delete S.pendientes[c.logos[el.getAttribute('data-logo')]]; c.logos[el.getAttribute('data-logo')] = ''; return cambio(true);
@@ -784,10 +836,10 @@
     var lista = bibliotecaLogos(), secundario = clave.indexOf('secundario') === 0;
     return new Promise(function (resolver) {
       var f = $('#dialogo-form'), d = $('#dialogo');
-      f.innerHTML = '<h3>Biblioteca de logos</h3><p class="ayuda" style="margin:0">Toque un logo. Se colocan su versión clara (para fondos oscuros) y su versión oscura (para fondos claros).</p>' +
+      f.innerHTML = '<h3>Biblioteca de logos</h3><p class="ayuda" style="margin:0">Toque un logo. Se guardan <b>sus dos versiones</b> y el catálogo usa cada una donde corresponde: la de arriba sobre fondos oscuros y la de abajo sobre fondos claros.</p>' +
         '<div class="biblioteca">' + lista.map(function (l, i) {
-          return '<button type="submit" value="' + i + '" class="logo-opcion"><span style="background:#1b1916"><img src="' + esc(rutaImagen(l.claro)) + '" alt=""></span>' +
-            '<span style="background:#f4efe8"><img src="' + esc(rutaImagen(l.oscuro)) + '" alt=""></span><b>' + esc(l.nombre) + '</b></button>';
+          return '<button type="submit" value="' + i + '" class="logo-opcion"><span style="background:#1b1916"><img src="' + esc(rutaImagen(l.claro)) + '" alt=""><i>fondos oscuros</i></span>' +
+            '<span style="background:#f4efe8"><img src="' + esc(rutaImagen(l.oscuro)) + '" alt=""><i class="oscuro">fondos claros</i></span><b>' + esc(l.nombre) + '</b></button>';
         }).join('') + '</div><div class="fila fila-fin"><button value="no" class="btn btn-borde">Cancelar</button></div>';
       d.onclose = function () { resolver(d.returnValue && d.returnValue !== 'no' ? lista[+d.returnValue] : null); };
       d.returnValue = ''; d.showModal();
@@ -796,7 +848,7 @@
       var c = Cat(); c.logos = c.logos || {};
       if (secundario) { c.logos.secundario = l.claro; c.logos.secundarioOscuro = l.oscuro; }
       else { c.logos.claro = l.claro; c.logos.oscuro = l.oscuro; }
-      cambio(true); aviso('Logo «' + l.nombre + '» colocado (versión clara y oscura). Recuerde publicar.', 'ok');
+      cambio(true); aviso('Logo «' + l.nombre + '» colocado con sus dos versiones (clara y oscura).', 'ok');
     });
   }
 
@@ -1074,10 +1126,7 @@
       '<body style="font-family:sans-serif;background:#111;color:#eee;text-align:center;padding:40px">' +
       '<p>Abriendo el catálogo… <a style="color:#e3cc9c" href="../?c=' + c.id + '">continuar</a></p></body></html>';
   }
-  function publicar() {
-    if (!hayCambios()) return aviso('No hay cambios por publicar.');
-    var errores = validar();
-    if (errores.length) return aviso(errores[0], 'error');
+  function imagenesUsadas() {
     var usadas = {};
     if (S.datos.favicon) usadas[S.datos.favicon] = 1;
     S.datos.catalogos.forEach(function (c) {
@@ -1085,7 +1134,34 @@
       Object.keys(c.logos || {}).forEach(function (k) { if (c.logos[k]) usadas[c.logos[k]] = 1; });
       c.temporadas.forEach(function (t) { (t.secciones || []).forEach(function (s) { (s.paginas || []).forEach(function (p) { usadas[p.imagen] = 1; }); }); });
     });
-    var imagenes = Object.keys(S.pendientes).filter(function (r) { return usadas[r]; });
+    return Object.keys(S.pendientes).filter(function (r) { return usadas[r]; });
+  }
+  // Guarda todo en GitHub sin cambiar lo que ve el público, para seguir editando después (en este u otro equipo).
+  function guardarBorrador() {
+    if (!sinGuardar()) { aviso('No hay cambios nuevos por guardar.'); return Promise.resolve(true); }
+    var b = $('#boton-guardar'); b.disabled = true; b.textContent = 'Guardando…';
+    var imagenes = imagenesUsadas();
+    var archivos = imagenes.map(function (r) { return { ruta: r, base64: S.pendientes[r].base64 }; });
+    var cuerpo = { usuario: S.usuario, fecha: Date.now(), catalogo: S.catalogo, temporada: S.temporada, datos: S.datos };
+    archivos.push({ ruta: RUTA_BORRADOR, base64: textoAB64(JSON.stringify(cuerpo, null, 2)) });
+    return publicarArchivos(archivos, [], 'Panel: borrador guardado por ' + S.usuario).then(function () {
+      imagenes.forEach(function (r) { S.cache[r] = S.pendientes[r].dataUrl; });
+      S.pendientes = {}; S.guardado = JSON.stringify(S.datos); borrarBorradorLocal();
+      S.horaGuardado = new Date().toLocaleTimeString('es-EC', { hour: '2-digit', minute: '2-digit' });
+      aviso('Guardado. El público no ve estos cambios hasta que pulse «Publicar».', 'ok');
+      return true;
+    }).catch(function (e) {
+      aviso('No se pudo guardar: ' + (e.status === 401 ? 'el token venció.' : e.message), 'error');
+      return false;
+    }).then(function (r) { b.disabled = false; actualizarCabecera(); return r; });
+  }
+
+  function publicar() {
+    if (!hayCambios()) return aviso('No hay cambios por publicar.');
+    if (!S.cache) S.cache = {};
+    var errores = validar();
+    if (errores.length) return aviso(errores[0], 'error');
+    var imagenes = imagenesUsadas();
     return dialogo('Publicar cambios', 'Se publicarán ' + imagenes.length + ' imagen(es) nuevas y todos los textos de ' + S.datos.catalogos.length + ' catálogo(s). Se verá en 1 a 2 minutos.', [], 'Publicar').then(function (v) {
       if (!v) return;
       var b = $('#boton-publicar'); b.disabled = true; b.textContent = 'Publicando…';
@@ -1093,9 +1169,10 @@
       var archivos = imagenes.map(function (r) { return { ruta: r, base64: S.pendientes[r].base64 }; });
       S.datos.catalogos.forEach(function (c) { archivos.push({ ruta: c.id + '/index.html', base64: textoAB64(paginaRedireccion(c)) }); });
       archivos.push({ ruta: RUTA_DATOS, base64: textoAB64(JSON.stringify(S.datos, null, 2)) });
-      var borrar = (S.eliminados || []).map(function (id) { return id + '/index.html'; });
+      var borrar = (S.eliminados || []).map(function (id) { return id + '/index.html'; }).concat([RUTA_BORRADOR]);
       return publicarArchivos(archivos, borrar, 'Panel: actualización de catálogos por ' + S.usuario).then(function () {
-        S.pendientes = {}; S.eliminados = []; S.original = JSON.stringify(S.datos); borrarBorradorLocal();
+        imagenes.forEach(function (r) { S.cache[r] = S.pendientes[r].dataUrl; });
+        S.pendientes = {}; S.eliminados = []; S.original = JSON.stringify(S.datos); S.guardado = S.original; S.horaGuardado = null; borrarBorradorLocal();
         aviso('¡Publicado! Los catálogos se actualizan en 1 a 2 minutos.', 'ok');
       }).catch(function (e) {
         aviso('No se pudo publicar: ' + (e.status === 401 ? 'el token venció.' : e.message), 'error');
@@ -1103,10 +1180,11 @@
     });
   }
   function salir() {
-    var seguir = hayCambios() ? dialogo('Salir', 'Tiene cambios sin publicar. Quedan guardados en este equipo como borrador.', [], 'Salir') : Promise.resolve({});
+    var seguir = !sinGuardar() ? Promise.resolve({}) :
+      dialogo('Salir', 'Tiene cambios <b>sin guardar</b>. ¿Desea guardarlos para seguir editando después? (El público no los verá hasta que pulse «Publicar».)', [], 'Guardar y salir', false, 'Salir sin guardar')
+        .then(function (v) { if (v && v.__extra) { borrarBorradorLocal(); return {}; } return v ? guardarBorrador().then(function (ok) { return ok ? {} : null; }) : null; });
     seguir.then(function (v) {
       if (!v) return;
-      if (hayCambios()) guardarBorradorLocal();
       S.token = null; S.maestra = null; S.maestraBytes = null; S.datos = null;
       $('#app').hidden = true; $('#pantalla-acceso').hidden = false; mostrarLogin();
     });
@@ -1183,7 +1261,7 @@
   $('#pestanas').addEventListener('click', function (e) { var b = e.target.closest('[data-pestana]'); if (b) { S.pestana = b.getAttribute('data-pestana'); pintarTodo(); } });
   $('#catalogo-editando').addEventListener('change', function (e) { S.catalogo = e.target.value; S.temporada = Cat().activa; pintarTodo(); });
   $('#temporada-editando').addEventListener('change', function (e) { S.temporada = e.target.value; pintarTodo(); });
-  window.addEventListener('beforeunload', function (e) { if (S.datos && hayCambios()) { guardarBorradorLocal(); e.preventDefault(); e.returnValue = ''; } });
+  window.addEventListener('beforeunload', function (e) { if (S.datos && sinGuardar()) { guardarBorradorLocal(); e.preventDefault(); e.returnValue = ''; } });
 
   iniciar();
 })();
